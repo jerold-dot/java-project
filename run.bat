@@ -3,8 +3,8 @@ echo ========================================================
 echo  Pharmacy Management System - MySQL Launch Script
 echo ========================================================
 echo.
-echo Compiling Java source files with MySQL JDBC Driver...
-javac --release 17 -cp ".;mysql-connector-j-8.3.0.jar" project.java DatabaseHelper.java main.java
+echo Compiling project.java with MySQL JDBC Driver...
+javac --release 17 -cp ".;mysql-connector-j-8.3.0.jar" project.java
 if %errorlevel% neq 0 (
     echo.
     echo Compilation failed! Please check for errors above.

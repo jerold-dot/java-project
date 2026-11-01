@@ -51,8 +51,8 @@ run.bat
 In your terminal, run:
 
 ```bash
-# 1. Compile Java source files with the MySQL JDBC driver
-javac --release 17 -cp ".;mysql-connector-j-8.3.0.jar" project.java DatabaseHelper.java main.java
+# 1. Compile the unified Java file with the MySQL JDBC driver
+javac --release 17 -cp ".;mysql-connector-j-8.3.0.jar" project.java
 
 # 2. Run the application
 java -cp ".;mysql-connector-j-8.3.0.jar" PharmacyManagementSystem
@@ -77,13 +77,10 @@ You can override these using environment variables:
 ## 📂 Project Structure
 
 ```text
-├── project.java                # Main application UI and logic (PharmacyManagementSystem)
-├── DatabaseHelper.java         # JDBC MySQL connection & data access layer
-├── main.java                   # Compatibility application entry point
+├── project.java                # Unified Java source file (UI, Business Logic & MySQL Database Layer)
 ├── setup_pharmacy_db.sql       # Database schema creation and sample seed script
 ├── mysql-connector-j-8.3.0.jar # MySQL JDBC driver
 ├── run.bat                     # Windows one-click build and execution script
 ├── README.md                   # Project documentation
 └── .gitignore                  # Git ignore rules for class files
 ```
-
