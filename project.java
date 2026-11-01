@@ -15,12 +15,17 @@ import javax.swing.table.DefaultTableModel;
 class PharmacyManagementSystem {
 
     // --- Interface ---
-    interface MedicineCategory {
-        String getCategory();
+    interface Billable {
+        double calculateTotalValue();
     }
 
-    // --- Data Model: Medicine Batch ---
-    static class MedicineBatch implements MedicineCategory {
+    // --- Abstract Class ---
+    abstract static class MedicineCategory {
+        public abstract String getCategory();
+    }
+
+    // --- Data Model: Medicine Batch (Inheritance + Interface Implementation) ---
+    static class MedicineBatch extends MedicineCategory implements Billable {
         private String id;
         private String name;
         private String batchNumber;
@@ -46,6 +51,11 @@ class PharmacyManagementSystem {
         @Override
         public String getCategory() {
             return "Pharmacy Medicine";
+        }
+
+        @Override
+        public double calculateTotalValue() {
+            return quantity * unitPrice;
         }
 
         public String getId() {
@@ -416,6 +426,11 @@ class PharmacyManagementSystem {
         List<TransactionRecord> dbTransactions = DatabaseHelper.getAllTransactions();
         transactionHistory.addAll(dbTransactions);
         billCounter = DatabaseHelper.getNextBillNumber();
+
+        // Fallback to sample data if database is empty or offline
+        if (inventory.isEmpty()) {
+            seedSampleData();
+        }
     }
 
     public static void main(String[] args) {
@@ -1003,8 +1018,8 @@ class PharmacyManagementSystem {
     }
 }
 
-/** Entry point alias so both 'java main' and 'java PharmacyManagementSystem' work */
-class main {
+/** Entry point alias so both 'java Main' and 'java PharmacyManagementSystem' work */
+class Main {
     public static void main(String[] args) {
         PharmacyManagementSystem.main(args);
     }
