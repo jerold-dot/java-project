@@ -13,8 +13,13 @@ import java.awt.event.WindowEvent;
 
 class PharmacyManagementSystem {
 
+    // --- Abstract Class ---
+    abstract static class MedicineCategory {
+        public abstract String getCategory();
+    }
+
     // --- Data Model: Medicine Batch ---
-    static class MedicineBatch {
+    static class MedicineBatch extends MedicineCategory {
         private String id;
         private String name;
         private String batchNumber;
@@ -35,6 +40,11 @@ class PharmacyManagementSystem {
             this.expiryDate = expiryDate;
             this.supplier = supplier;
             this.unitPrice = unitPrice;
+        }
+
+        @Override
+        public String getCategory() {
+            return "Pharmacy Medicine";
         }
 
         public String getId() {
@@ -117,8 +127,27 @@ class PharmacyManagementSystem {
     private static String pendingCustomerName;
     private static final List<SaleItem> pendingBillItems = new ArrayList<>();
 
+    public static void syncFromDatabase() {
+        stockCount = 0;
+        inventory.clear();
+        transactionHistory.clear();
+
+        List<MedicineBatch> dbMedicines = DatabaseHelper.getAllMedicines();
+        for (MedicineBatch b : dbMedicines) {
+            if (stockCount < Stock.length) {
+                Stock[stockCount++] = b;
+                inventory.put(b.getId(), b);
+            }
+        }
+
+        List<TransactionRecord> dbTransactions = DatabaseHelper.getAllTransactions();
+        transactionHistory.addAll(dbTransactions);
+    }
+
     public static void main(String[] args) {
-        seedSampleData();
+        DatabaseHelper.initializeDatabase();
+        DatabaseHelper.seedIfEmpty();
+        syncFromDatabase();
         SwingUtilities.invokeLater(() -> new PharmacyFrame().setVisible(true));
     }
 
@@ -152,8 +181,12 @@ class PharmacyManagementSystem {
             if (inventory.containsKey(id)) {
                 System.out.print("Item exists. Enter new stock quantity to ADD: ");
                 int addQty = Integer.parseInt(scanner.nextLine().trim());
+                if (addQty <= 0)
+                    throw new IllegalArgumentException("Quantity to add must be positive");
                 MedicineBatch existing = inventory.get(id);
                 existing.setQuantity(existing.getQuantity() + addQty);
+                DatabaseHelper.saveOrUpdateMedicine(existing);
+                syncFromDatabase();
                 System.out.println("Stock updated! New quantity: " + existing.getQuantity());
                 return;
             }
@@ -164,20 +197,29 @@ class PharmacyManagementSystem {
             String batchNo = scanner.nextLine().trim();
             System.out.print("Initial Quantity: ");
             int qty = Integer.parseInt(scanner.nextLine().trim());
+            if (qty <= 0)
+                throw new IllegalArgumentException("Initial quantity must be positive");
             System.out.print("Manufacturing Date (YYYY-MM-DD): ");
             LocalDate mfgDate = LocalDate.parse(scanner.nextLine().trim(), DATE_FORMAT);
             System.out.print("Expiry Date (YYYY-MM-DD): ");
             LocalDate expDate = LocalDate.parse(scanner.nextLine().trim(), DATE_FORMAT);
+            if (mfgDate.isAfter(expDate))
+                throw new IllegalArgumentException("Manufacturing date cannot be after expiry date");
+            if (expDate.isBefore(LocalDate.now()))
+                throw new IllegalArgumentException("New medicine cannot already be expired");
             System.out.print("Supplier Name: ");
             String supplier = scanner.nextLine().trim();
             System.out.print("Unit Price (₹): ");
             double price = Double.parseDouble(scanner.nextLine().trim());
+            if (!Double.isFinite(price) || price < 0)
+                throw new IllegalArgumentException("Unit price must be zero or greater");
 
             MedicineBatch batch = new MedicineBatch(id, name, batchNo, qty, mfgDate, expDate, supplier, price);
-            if (!addToStock(batch)) {
-                System.out.println("Stock database is full. Medicine was not added.");
+            if (!DatabaseHelper.saveOrUpdateMedicine(batch)) {
+                System.out.println("Could not save to database.");
                 return;
             }
+            syncFromDatabase();
             System.out.println("Medicine successfully added to registry!");
 
         } catch (Exception e) {
@@ -312,7 +354,8 @@ class PharmacyManagementSystem {
         String billId = "INV-" + (billCounter++);
         TransactionRecord record = new TransactionRecord(billId, pendingCustomerName, LocalDate.now(),
                 new ArrayList<>(pendingBillItems), totalBillAmount);
-        transactionHistory.add(record);
+        DatabaseHelper.recordTransaction(record);
+        syncFromDatabase();
 
         System.out.println("\n========================= INVOICE =========================");
         System.out.println("Bill ID: " + billId + " | Date: " + LocalDate.now());
@@ -396,11 +439,15 @@ class PharmacyManagementSystem {
         private static final long serialVersionUID = 1L;
         private final DefaultTableModel stockModel = new DefaultTableModel(
                 new String[] { "ID", "Medicine", "Batch", "Stock", "Manufactured", "Expiry", "Supplier", "Price" }, 0) {
-            public boolean isCellEditable(int row, int column) { return false; }
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
         };
         private final DefaultTableModel cartModel = new DefaultTableModel(
                 new String[] { "ID", "Medicine", "Qty", "Unit Price", "Subtotal" }, 0) {
-            public boolean isCellEditable(int row, int column) { return false; }
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
         };
         private final JTable stockTable = new JTable(stockModel);
         private final JTable cartTable = new JTable(cartModel);
@@ -416,7 +463,8 @@ class PharmacyManagementSystem {
             addWindowListener(new WindowAdapter() {
                 public void windowClosing(WindowEvent e) {
                     if (JOptionPane.showConfirmDialog(PharmacyFrame.this, "Exit the pharmacy system?", "Confirm Exit",
-                            JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION) System.exit(0);
+                            JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION)
+                        System.exit(0);
                 }
             });
 
@@ -444,7 +492,8 @@ class PharmacyManagementSystem {
             JButton refresh = new JButton("Refresh");
             add.addActionListener(e -> medicineDialog());
             refresh.addActionListener(e -> refreshAll());
-            buttons.add(add); buttons.add(refresh);
+            buttons.add(add);
+            buttons.add(refresh);
             panel.add(buttons, BorderLayout.NORTH);
             stockTable.setAutoCreateRowSorter(true);
             panel.add(new JScrollPane(stockTable), BorderLayout.CENTER);
@@ -471,42 +520,67 @@ class PharmacyManagementSystem {
             JButton add = new JButton("Add to Bill");
             JButton remove = new JButton("Remove Selected");
             JButton checkoutButton = new JButton("Checkout");
-            top.add(new JLabel("Customer:")); top.add(customer);
-            top.add(new JLabel("Medicine:")); top.add(medicine);
-            top.add(new JLabel("Quantity:")); top.add(quantity); top.add(add);
+            top.add(new JLabel("Customer:"));
+            top.add(customer);
+            top.add(new JLabel("Medicine:"));
+            top.add(medicine);
+            top.add(new JLabel("Quantity:"));
+            top.add(quantity);
+            top.add(add);
             panel.add(top, BorderLayout.NORTH);
             panel.add(new JScrollPane(cartTable), BorderLayout.CENTER);
             JPanel bottom = new JPanel(new FlowLayout(FlowLayout.RIGHT));
             JLabel total = new JLabel("Total: ₹0.00");
-            bottom.add(remove); bottom.add(total); bottom.add(checkoutButton);
+            bottom.add(remove);
+            bottom.add(total);
+            bottom.add(checkoutButton);
             panel.add(bottom, BorderLayout.SOUTH);
 
-            for (MedicineBatch b : orderedStock()) medicine.addItem(b.getId() + " - " + b.getName());
+            for (MedicineBatch b : orderedStock())
+                medicine.addItem(b.getId() + " - " + b.getName());
             add.addActionListener(e -> {
-                if (medicine.getSelectedItem() == null) return;
+                if (medicine.getSelectedItem() == null)
+                    return;
                 String id = medicine.getSelectedItem().toString().split(" - ", 2)[0];
                 MedicineBatch b = inventory.get(id);
                 int qty = (Integer) quantity.getValue();
-                if (b.getExpiryDate().isBefore(LocalDate.now())) { error("This medicine batch has expired."); return; }
+                if (b.getExpiryDate().isBefore(LocalDate.now())) {
+                    error("This medicine batch has expired.");
+                    return;
+                }
                 int already = 0;
-                for (SaleItem item : pendingBillItems) if (item.batch == b) already += item.quantitySold;
-                if (qty + already > b.getQuantity()) { error("Quantity exceeds available stock (" + b.getQuantity() + ")."); return; }
+                for (SaleItem item : pendingBillItems)
+                    if (item.batch == b)
+                        already += item.quantitySold;
+                if (qty + already > b.getQuantity()) {
+                    error("Quantity exceeds available stock (" + b.getQuantity() + ").");
+                    return;
+                }
                 pendingCustomerName = customer.getText().trim();
-                if (pendingCustomerName.isEmpty()) { error("Enter the customer name first."); return; }
+                if (pendingCustomerName.isEmpty()) {
+                    error("Enter the customer name first.");
+                    return;
+                }
                 pendingBillItems.add(new SaleItem(b, qty));
                 refreshCart(total);
             });
             remove.addActionListener(e -> {
                 int row = cartTable.getSelectedRow();
-                if (row >= 0) pendingBillItems.remove(row);
+                if (row >= 0)
+                    pendingBillItems.remove(row);
                 refreshCart(total);
             });
             checkoutButton.addActionListener(e -> {
-                if (pendingBillItems.isEmpty()) { error("The bill is empty."); return; }
+                if (pendingBillItems.isEmpty()) {
+                    error("The bill is empty.");
+                    return;
+                }
                 String invoice = invoiceText();
                 checkout();
-                refreshAll(); refreshCart(total);
-                JTextArea view = new JTextArea(invoice); view.setEditable(false);
+                refreshAll();
+                refreshCart(total);
+                JTextArea view = new JTextArea(invoice);
+                view.setEditable(false);
                 JOptionPane.showMessageDialog(this, new JScrollPane(view), "Invoice", JOptionPane.INFORMATION_MESSAGE);
                 customer.setText("");
             });
@@ -526,83 +600,130 @@ class PharmacyManagementSystem {
 
         private List<MedicineBatch> orderedStock() {
             List<MedicineBatch> result = new ArrayList<>();
-            for (int i = 0; i < stockCount; i++) result.add(Stock[i]);
+            for (int i = 0; i < stockCount; i++)
+                result.add(Stock[i]);
             return result;
         }
 
-        private void refreshAll() { refreshStock(); refreshAlerts(); refreshHistory(); }
+        private void refreshAll() {
+            syncFromDatabase();
+            refreshStock();
+            refreshAlerts();
+            refreshHistory();
+        }
 
         private void refreshStock() {
             stockModel.setRowCount(0);
-            for (MedicineBatch b : orderedStock()) stockModel.addRow(new Object[] { b.getId(), b.getName(), b.getBatchNumber(),
-                    b.getQuantity(), b.getManufacturingDate(), b.getExpiryDate(), b.getSupplier(), String.format("₹%.2f", b.getUnitPrice()) });
+            for (MedicineBatch b : orderedStock())
+                stockModel.addRow(new Object[] { b.getId(), b.getName(), b.getBatchNumber(),
+                        b.getQuantity(), b.getManufacturingDate(), b.getExpiryDate(), b.getSupplier(),
+                        String.format("₹%.2f", b.getUnitPrice()) });
         }
 
         private void refreshAlerts() {
             StringBuilder s = new StringBuilder("LOW STOCK ALERTS (threshold ≤ " + LOW_STOCK_THRESHOLD + ")\n");
             boolean found = false;
-            for (MedicineBatch b : orderedStock()) if (b.getQuantity() <= LOW_STOCK_THRESHOLD) {
-                s.append("• ").append(b.getId()).append(" - ").append(b.getName()).append(": ").append(b.getQuantity()).append(" units\n"); found = true;
-            }
-            if (!found) s.append("None\n");
-            s.append("\nEXPIRY ALERTS (within ").append(EXPIRY_WARNING_DAYS).append(" days)\n"); found = false;
+            for (MedicineBatch b : orderedStock())
+                if (b.getQuantity() <= LOW_STOCK_THRESHOLD) {
+                    s.append("• ").append(b.getId()).append(" - ").append(b.getName()).append(": ")
+                            .append(b.getQuantity()).append(" units\n");
+                    found = true;
+                }
+            if (!found)
+                s.append("None\n");
+            s.append("\nEXPIRY ALERTS (within ").append(EXPIRY_WARNING_DAYS).append(" days)\n");
+            found = false;
             for (MedicineBatch b : orderedStock()) {
                 long days = ChronoUnit.DAYS.between(LocalDate.now(), b.getExpiryDate());
-                if (days <= EXPIRY_WARNING_DAYS) { s.append("• ").append(b.getId()).append(" - ").append(b.getName()).append(": ")
-                        .append(days < 0 ? "EXPIRED" : "expires in " + days + " days").append(" (").append(b.getExpiryDate()).append(")\n"); found = true; }
+                if (days <= EXPIRY_WARNING_DAYS) {
+                    s.append("• ").append(b.getId()).append(" - ").append(b.getName()).append(": ")
+                            .append(days < 0 ? "EXPIRED" : "expires in " + days + " days").append(" (")
+                            .append(b.getExpiryDate()).append(")\n");
+                    found = true;
+                }
             }
-            if (!found) s.append("None\n");
+            if (!found)
+                s.append("None\n");
             alertsArea.setText(s.toString());
         }
 
         private void refreshHistory() {
             StringBuilder s = new StringBuilder();
-            if (transactionHistory.isEmpty()) s.append("No transactions recorded yet.");
+            if (transactionHistory.isEmpty())
+                s.append("No transactions recorded yet.");
             for (TransactionRecord t : transactionHistory) {
                 s.append(t.billId).append(" | ").append(t.date).append(" | ").append(t.customerName)
                         .append(" | Total: ₹").append(String.format("%.2f", t.totalAmount)).append("\n");
-                for (SaleItem i : t.items) s.append("   ").append(i.batch.getName()).append(" x ").append(i.quantitySold)
-                        .append(" = ₹").append(String.format("%.2f", i.subtotal)).append("\n");
+                for (SaleItem i : t.items)
+                    s.append("   ").append(i.batch.getName()).append(" x ").append(i.quantitySold)
+                            .append(" = ₹").append(String.format("%.2f", i.subtotal)).append("\n");
             }
             historyArea.setText(s.toString());
         }
 
         private void refreshCart(JLabel total) {
             cartModel.setRowCount(0);
-            for (SaleItem i : pendingBillItems) cartModel.addRow(new Object[] { i.batch.getId(), i.batch.getName(), i.quantitySold,
-                    String.format("₹%.2f", i.batch.getUnitPrice()), String.format("₹%.2f", i.subtotal) });
+            for (SaleItem i : pendingBillItems)
+                cartModel.addRow(new Object[] { i.batch.getId(), i.batch.getName(), i.quantitySold,
+                        String.format("₹%.2f", i.batch.getUnitPrice()), String.format("₹%.2f", i.subtotal) });
             total.setText(String.format("Total: ₹%.2f", calculatePendingTotal()));
         }
 
         private void medicineDialog() {
             JTextField id = new JTextField(), name = new JTextField(), batch = new JTextField(), qty = new JTextField(),
-                    mfg = new JTextField("" + LocalDate.now()), exp = new JTextField("" + LocalDate.now().plusMonths(12)),
+                    mfg = new JTextField("" + LocalDate.now()),
+                    exp = new JTextField("" + LocalDate.now().plusMonths(12)),
                     supplier = new JTextField(), price = new JTextField();
             Object[] fields = { "ID (existing ID adds stock):", id, "Medicine name:", name, "Batch number:", batch,
                     "Quantity:", qty, "Manufacturing date (YYYY-MM-DD):", mfg, "Expiry date (YYYY-MM-DD):", exp,
                     "Supplier:", supplier, "Unit price:", price };
-            if (JOptionPane.showConfirmDialog(this, fields, "Add / Update Medicine", JOptionPane.OK_CANCEL_OPTION) != JOptionPane.OK_OPTION) return;
+            if (JOptionPane.showConfirmDialog(this, fields, "Add / Update Medicine",
+                    JOptionPane.OK_CANCEL_OPTION) != JOptionPane.OK_OPTION)
+                return;
             try {
-                if (id.getText().trim().isEmpty()) throw new IllegalArgumentException("ID is required");
+                if (id.getText().trim().isEmpty())
+                    throw new IllegalArgumentException("ID is required");
                 int amount = Integer.parseInt(qty.getText().trim());
-                if (amount <= 0) throw new IllegalArgumentException("Quantity must be positive");
+                if (amount <= 0)
+                    throw new IllegalArgumentException("Quantity must be positive");
                 if (inventory.containsKey(id.getText().trim())) {
                     MedicineBatch existing = inventory.get(id.getText().trim());
                     existing.setQuantity(existing.getQuantity() + amount);
-                } else if (!addToStock(new MedicineBatch(id.getText().trim(), name.getText().trim(), batch.getText().trim(), amount,
-                        LocalDate.parse(mfg.getText().trim(), DATE_FORMAT), LocalDate.parse(exp.getText().trim(), DATE_FORMAT),
-                        supplier.getText().trim(), Double.parseDouble(price.getText().trim())))) throw new IllegalStateException("Stock is full");
-                refreshAll(); status.setText(" Medicine saved successfully.");
-            } catch (Exception ex) { error("Invalid input: " + ex.getMessage()); }
+                    DatabaseHelper.saveOrUpdateMedicine(existing);
+                } else {
+                    LocalDate manufacturingDate = LocalDate.parse(mfg.getText().trim(), DATE_FORMAT);
+                    LocalDate expiryDate = LocalDate.parse(exp.getText().trim(), DATE_FORMAT);
+                    if (manufacturingDate.isAfter(expiryDate))
+                        throw new IllegalArgumentException("Manufacturing date cannot be after expiry date");
+                    if (expiryDate.isBefore(LocalDate.now()))
+                        throw new IllegalArgumentException("New medicine cannot already be expired");
+                    double unitPrice = Double.parseDouble(price.getText().trim());
+                    if (!Double.isFinite(unitPrice) || unitPrice < 0)
+                        throw new IllegalArgumentException("Unit price must be zero or greater");
+                    MedicineBatch newBatch = new MedicineBatch(id.getText().trim(), name.getText().trim(),
+                            batch.getText().trim(), amount, manufacturingDate, expiryDate,
+                            supplier.getText().trim(), unitPrice);
+                    DatabaseHelper.saveOrUpdateMedicine(newBatch);
+                }
+                syncFromDatabase();
+                refreshAll();
+                status.setText(" Medicine saved to MySQL database successfully.");
+            } catch (Exception ex) {
+                error("Invalid input: " + ex.getMessage());
+            }
         }
 
         private String invoiceText() {
-            StringBuilder s = new StringBuilder("Invoice\nCustomer: ").append(pendingCustomerName).append("\nDate: ").append(LocalDate.now()).append("\n\n");
-            for (SaleItem i : pendingBillItems) s.append(i.batch.getName()).append(" x ").append(i.quantitySold).append(" = ₹")
-                    .append(String.format("%.2f", i.subtotal)).append("\n");
+            StringBuilder s = new StringBuilder("Invoice\nCustomer: ").append(pendingCustomerName).append("\nDate: ")
+                    .append(LocalDate.now()).append("\n\n");
+            for (SaleItem i : pendingBillItems)
+                s.append(i.batch.getName()).append(" x ").append(i.quantitySold).append(" = ₹")
+                        .append(String.format("%.2f", i.subtotal)).append("\n");
             return s.append("\nTOTAL: ₹").append(String.format("%.2f", calculatePendingTotal())).toString();
         }
 
-        private void error(String message) { JOptionPane.showMessageDialog(this, message, "Input Error", JOptionPane.ERROR_MESSAGE); }
+        private void error(String message) {
+            JOptionPane.showMessageDialog(this, message, "Input Error", JOptionPane.ERROR_MESSAGE);
+        }
     }
 }

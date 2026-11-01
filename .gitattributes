@@ -1,0 +1,2 @@
+*.sql linguist-language=SQL
+*.jar linguist-generated=true
