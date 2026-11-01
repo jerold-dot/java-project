@@ -130,12 +130,19 @@ public class DatabaseHelper {
     }
 
     /**
-     * Inserts new medicine or updates quantity if medicine ID exists.
+     * Inserts new medicine or updates fields and quantity if medicine ID already exists.
      */
     public static boolean saveOrUpdateMedicine(PharmacyManagementSystem.MedicineBatch batch) {
         String query = "INSERT INTO medicines (id, name, batch_number, quantity, mfg_date, exp_date, supplier, unit_price) " +
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?) " +
-                "ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)";
+                "ON DUPLICATE KEY UPDATE " +
+                "name = VALUES(name), " +
+                "batch_number = VALUES(batch_number), " +
+                "quantity = VALUES(quantity), " +
+                "mfg_date = VALUES(mfg_date), " +
+                "exp_date = VALUES(exp_date), " +
+                "supplier = VALUES(supplier), " +
+                "unit_price = VALUES(unit_price)";
 
         try (Connection conn = getConnection();
              PreparedStatement ps = conn.prepareStatement(query)) {
@@ -154,6 +161,33 @@ public class DatabaseHelper {
             System.err.println("[DatabaseHelper] Error saving medicine: " + e.getMessage());
             return false;
         }
+    }
+
+    /**
+     * Determines the next sequential invoice/bill number from existing records.
+     */
+    public static int getNextBillNumber() {
+        String query = "SELECT bill_id FROM transactions";
+        int max = 1000;
+        try (Connection conn = getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(query)) {
+
+            while (rs.next()) {
+                String id = rs.getString(1);
+                if (id != null && id.startsWith("INV-")) {
+                    try {
+                        int num = Integer.parseInt(id.substring(4).trim());
+                        if (num > max) {
+                            max = num;
+                        }
+                    } catch (NumberFormatException ignored) {}
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[DatabaseHelper] Error checking bill number: " + e.getMessage());
+        }
+        return max + 1;
     }
 
     /**

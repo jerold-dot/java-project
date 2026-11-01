@@ -142,6 +142,7 @@ class PharmacyManagementSystem {
 
         List<TransactionRecord> dbTransactions = DatabaseHelper.getAllTransactions();
         transactionHistory.addAll(dbTransactions);
+        billCounter = DatabaseHelper.getNextBillNumber();
     }
 
     public static void main(String[] args) {
@@ -451,9 +452,10 @@ class PharmacyManagementSystem {
         };
         private final JTable stockTable = new JTable(stockModel);
         private final JTable cartTable = new JTable(cartModel);
+        private final JComboBox<String> medicineCombo = new JComboBox<>();
         private final JTextArea alertsArea = new JTextArea();
         private final JTextArea historyArea = new JTextArea();
-        private final JLabel status = new JLabel(" Ready");
+        private final JLabel status = new JLabel(" Connected to MySQL (pharmacy_db)");
 
         PharmacyFrame() {
             setTitle("Pharmacy Inventory & Billing System");
@@ -515,7 +517,6 @@ class PharmacyManagementSystem {
             JPanel panel = new JPanel(new BorderLayout(8, 8));
             JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
             JTextField customer = new JTextField(18);
-            JComboBox<String> medicine = new JComboBox<>();
             JSpinner quantity = new JSpinner(new SpinnerNumberModel(1, 1, 100000, 1));
             JButton add = new JButton("Add to Bill");
             JButton remove = new JButton("Remove Selected");
@@ -523,7 +524,7 @@ class PharmacyManagementSystem {
             top.add(new JLabel("Customer:"));
             top.add(customer);
             top.add(new JLabel("Medicine:"));
-            top.add(medicine);
+            top.add(medicineCombo);
             top.add(new JLabel("Quantity:"));
             top.add(quantity);
             top.add(add);
@@ -536,12 +537,10 @@ class PharmacyManagementSystem {
             bottom.add(checkoutButton);
             panel.add(bottom, BorderLayout.SOUTH);
 
-            for (MedicineBatch b : orderedStock())
-                medicine.addItem(b.getId() + " - " + b.getName());
             add.addActionListener(e -> {
-                if (medicine.getSelectedItem() == null)
+                if (medicineCombo.getSelectedItem() == null)
                     return;
-                String id = medicine.getSelectedItem().toString().split(" - ", 2)[0];
+                String id = medicineCombo.getSelectedItem().toString().split(" - ", 2)[0];
                 MedicineBatch b = inventory.get(id);
                 int qty = (Integer) quantity.getValue();
                 if (b.getExpiryDate().isBefore(LocalDate.now())) {
@@ -614,10 +613,13 @@ class PharmacyManagementSystem {
 
         private void refreshStock() {
             stockModel.setRowCount(0);
-            for (MedicineBatch b : orderedStock())
+            medicineCombo.removeAllItems();
+            for (MedicineBatch b : orderedStock()) {
                 stockModel.addRow(new Object[] { b.getId(), b.getName(), b.getBatchNumber(),
                         b.getQuantity(), b.getManufacturingDate(), b.getExpiryDate(), b.getSupplier(),
                         String.format("₹%.2f", b.getUnitPrice()) });
+                medicineCombo.addItem(b.getId() + " - " + b.getName());
+            }
         }
 
         private void refreshAlerts() {
