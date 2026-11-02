@@ -1,0 +1,160 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2600 2000" width="100%" height="100%" style="background-color: #ffffff; font-family: Arial, sans-serif;">
+  <style>
+    .entity-box { fill: #ffffff; stroke: #000000; stroke-width: 2.5; }
+    .header-box { fill: #ebeef2; stroke: #000000; stroke-width: 2.5; }
+    .header-title { font-size: 21px; font-weight: bold; text-anchor: middle; fill: #000000; }
+    .double-line { stroke: #000000; stroke-width: 1; }
+    .pk-tag { font-size: 16px; font-weight: bold; fill: #000000; font-family: 'Consolas', monospace; }
+    .fk-tag { font-size: 16px; font-weight: bold; fill: #000000; font-family: 'Consolas', monospace; }
+    .attr-text { font-size: 16px; fill: #000000; font-family: 'Consolas', monospace; }
+    .rel-line { stroke: #000000; stroke-width: 2.5; fill: none; }
+    .cardinality { font-size: 18px; font-weight: bold; fill: #000000; }
+    .rel-label { font-size: 16px; font-style: italic; fill: #333333; }
+    .caption { font-size: 26px; font-weight: bold; font-family: 'Times New Roman', serif; text-anchor: middle; fill: #000000; }
+  </style>
+
+  <!-- ==================== 1. SUPPLIERS ==================== -->
+  <g id="entity-SUPPLIERS">
+    <rect class="entity-box" x="100" y="100" width="480" height="230" />
+    <rect class="header-box" x="100" y="100" width="480" height="48" />
+    <text class="header-title" x="340" y="132">SUPPLIERS</text>
+    <line class="double-line" x1="100" y1="144" x2="580" y2="144" />
+    <text class="pk-tag" x="116" y="180">PK  supplier_id: VARCHAR(10)</text>
+    <text class="attr-text" x="116" y="208">    supplier_name: VARCHAR(100)</text>
+    <text class="attr-text" x="116" y="236">    contact_person: VARCHAR(100)</text>
+    <text class="attr-text" x="116" y="264">    phone: VARCHAR(20)</text>
+    <text class="attr-text" x="116" y="292">    email: VARCHAR(100)</text>
+  </g>
+
+  <!-- ==================== 2. MEDICINES ==================== -->
+  <g id="entity-MEDICINES">
+    <rect class="entity-box" x="720" y="90" width="540" height="310" />
+    <rect class="header-box" x="720" y="90" width="540" height="48" />
+    <text class="header-title" x="990" y="122">MEDICINES</text>
+    <line class="double-line" x1="720" y1="134" x2="1260" y2="134" />
+    <text class="pk-tag" x="736" y="170">PK  id: VARCHAR(10)</text>
+    <text class="attr-text" x="736" y="198">    name: VARCHAR(100)</text>
+    <text class="attr-text" x="736" y="226">    batch_number: VARCHAR(50)</text>
+    <text class="attr-text" x="736" y="254">    quantity: INT</text>
+    <text class="attr-text" x="736" y="282">    mfg_date: DATE</text>
+    <text class="attr-text" x="736" y="310">    exp_date: DATE</text>
+    <text class="attr-text" x="736" y="338">    supplier: VARCHAR(100)</text>
+    <text class="attr-text" x="736" y="366">    unit_price: DECIMAL(10, 2)</text>
+  </g>
+
+  <!-- ==================== 3. INVENTORY_ALERTS ==================== -->
+  <g id="entity-INVENTORY_ALERTS">
+    <rect class="entity-box" x="1440" y="100" width="480" height="230" />
+    <rect class="header-box" x="1440" y="100" width="480" height="48" />
+    <text class="header-title" x="1680" y="132">INVENTORY_ALERTS</text>
+    <line class="double-line" x1="1440" y1="144" x2="1920" y2="144" />
+    <text class="pk-tag" x="1456" y="180">PK  alert_id: INT (AUTO_INCREMENT)</text>
+    <text class="fk-tag" x="1456" y="208">FK  medicine_id: VARCHAR(10)</text>
+    <text class="attr-text" x="1456" y="236">    alert_type: VARCHAR(20) [LOW/EXPIRY]</text>
+    <text class="attr-text" x="1456" y="264">    threshold_value: INT</text>
+    <text class="attr-text" x="1456" y="292">    status: VARCHAR(20)</text>
+  </g>
+
+  <!-- ==================== 4. TRANSACTION_ITEMS ==================== -->
+  <g id="entity-TRANSACTION_ITEMS">
+    <rect class="entity-box" x="720" y="620" width="540" height="230" />
+    <rect class="header-box" x="720" y="620" width="540" height="48" />
+    <text class="header-title" x="990" y="652">TRANSACTION_ITEMS</text>
+    <line class="double-line" x1="720" y1="664" x2="1260" y2="664" />
+    <text class="pk-tag" x="736" y="700">PK  item_id: INT (AUTO_INCREMENT)</text>
+    <text class="fk-tag" x="736" y="728">FK  bill_id: VARCHAR(20)</text>
+    <text class="fk-tag" x="736" y="756">FK  medicine_id: VARCHAR(10)</text>
+    <text class="attr-text" x="736" y="784">    quantity_sold: INT</text>
+    <text class="attr-text" x="736" y="812">    subtotal: DECIMAL(10, 2)</text>
+  </g>
+
+  <!-- ==================== 5. TRANSACTIONS ==================== -->
+  <g id="entity-TRANSACTIONS">
+    <rect class="entity-box" x="1440" y="630" width="520" height="210" />
+    <rect class="header-box" x="1440" y="630" width="520" height="48" />
+    <text class="header-title" x="1700" y="662">TRANSACTIONS</text>
+    <line class="double-line" x1="1440" y1="674" x2="1960" y2="674" />
+    <text class="pk-tag" x="1456" y="710">PK  bill_id: VARCHAR(20)</text>
+    <text class="attr-text" x="1456" y="738">    customer_name: VARCHAR(100)</text>
+    <text class="attr-text" x="1456" y="766">    bill_date: DATE</text>
+    <text class="attr-text" x="1456" y="794">    total_amount: DECIMAL(10, 2)</text>
+  </g>
+
+  <!-- ==================== 6. PHARMACY_USERS ==================== -->
+  <g id="entity-PHARMACY_USERS">
+    <rect class="entity-box" x="100" y="1280" width="520" height="210" />
+    <rect class="header-box" x="100" y="1280" width="520" height="48" />
+    <text class="header-title" x="360" y="1312">PHARMACY_USERS</text>
+    <line class="double-line" x1="100" y1="1324" x2="620" y2="1324" />
+    <text class="pk-tag" x="116" y="1360">PK  user_id: INT (AUTO_INCREMENT)</text>
+    <text class="attr-text" x="116" y="1388">    username: VARCHAR(50) (UNIQUE)</text>
+    <text class="attr-text" x="116" y="1416">    password_hash: VARCHAR(255)</text>
+    <text class="attr-text" x="116" y="1444">    full_name: VARCHAR(100)</text>
+    <text class="attr-text" x="116" y="1472">    role: VARCHAR(20) [ADMIN/PHARMACIST]</text>
+  </g>
+
+  <!-- ==================== 7. AUDIT_LOG ==================== -->
+  <g id="entity-AUDIT_LOG">
+    <rect class="entity-box" x="720" y="1280" width="540" height="210" />
+    <rect class="header-box" x="720" y="1280" width="540" height="48" />
+    <text class="header-title" x="990" y="1312">AUDIT_LOG</text>
+    <line class="double-line" x1="720" y1="1324" x2="1260" y2="1324" />
+    <text class="pk-tag" x="736" y="1360">PK  log_id: BIGINT (AUTO_INCREMENT)</text>
+    <text class="fk-tag" x="736" y="1388">FK  user_id: INT</text>
+    <text class="attr-text" x="736" y="1416">    action: VARCHAR(50) [ADD/REFILL/BILL]</text>
+    <text class="attr-text" x="736" y="1444">    target_table: VARCHAR(50)</text>
+    <text class="attr-text" x="736" y="1472">    timestamp: DATETIME</text>
+  </g>
+
+  <!-- ==================== 8. SETTINGS ==================== -->
+  <g id="entity-SETTINGS">
+    <rect class="entity-box" x="1440" y="1280" width="520" height="160" />
+    <rect class="header-box" x="1440" y="1280" width="520" height="48" />
+    <text class="header-title" x="1700" y="1312">SETTINGS</text>
+    <line class="double-line" x1="1440" y1="1324" x2="1960" y2="1324" />
+    <text class="pk-tag" x="1456" y="1360">PK  setting_key: VARCHAR(50)</text>
+    <text class="attr-text" x="1456" y="1388">    setting_value: VARCHAR(100)</text>
+    <text class="attr-text" x="1456" y="1416">    description: VARCHAR(255)</text>
+  </g>
+
+  <!-- ==================== RELATIONSHIPS & CONNECTORS ==================== -->
+
+  <!-- 1. SUPPLIERS (1) - supplies -> (N) MEDICINES -->
+  <line class="rel-line" x1="580" y1="160" x2="720" y2="160" />
+  <text class="cardinality" x="590" y="150">1</text>
+  <text class="cardinality" x="695" y="150">N</text>
+  <text class="rel-label" x="620" y="150">supplies</text>
+
+  <!-- 2. MEDICINES (1) - triggers -> (N) INVENTORY_ALERTS -->
+  <line class="rel-line" x1="1260" y1="160" x2="1440" y2="160" />
+  <text class="cardinality" x="1275" y="150">1</text>
+  <text class="cardinality" x="1415" y="150">N</text>
+  <text class="rel-label" x="1320" y="150">triggers</text>
+
+  <!-- 3. MEDICINES (1) - ordered_in -> (N) TRANSACTION_ITEMS -->
+  <line class="rel-line" x1="990" y1="400" x2="990" y2="620" />
+  <text class="cardinality" x="1005" y="425">1</text>
+  <text class="cardinality" x="1005" y="605">N</text>
+  <text class="rel-label" x="1005" y="515">ordered_in</text>
+
+  <!-- 4. TRANSACTIONS (1) - contains -> (N) TRANSACTION_ITEMS -->
+  <line class="rel-line" x1="1440" y1="720" x2="1260" y2="720" />
+  <text class="cardinality" x="1415" y="710">1</text>
+  <text class="cardinality" x="1275" y="710">N</text>
+  <text class="rel-label" x="1320" y="710">contains</text>
+
+  <!-- 5. PHARMACY_USERS (1) - logs -> (N) AUDIT_LOG -->
+  <line class="rel-line" x1="620" y1="1340" x2="720" y2="1340" />
+  <text class="cardinality" x="630" y="1330">1</text>
+  <text class="cardinality" x="695" y="1330">N</text>
+  <text class="rel-label" x="635" y="1370">recorded_in</text>
+
+  <!-- 6. PHARMACY_USERS (1) - processes -> (N) TRANSACTIONS -->
+  <path class="rel-line" d="M 450,1280 L 450,1050 L 1700,1050 L 1700,840" />
+  <text class="cardinality" x="460" y="1260">1</text>
+  <text class="cardinality" x="1710" y="870">N</text>
+  <text class="rel-label" x="1020" y="1040">processes / bills</text>
+
+  <!-- ==================== CAPTION ==================== -->
+  <text class="caption" x="1300" y="1930">Figure 5.2: Entity-Relationship (ER) Diagram of Pharmacy Database</text>
+</svg>
