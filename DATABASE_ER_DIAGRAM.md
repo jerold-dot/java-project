@@ -101,3 +101,4 @@ erDiagram
 - **`medicines` (1) to `transaction_items` (N)**: A medicine batch can be referenced across multiple sales.
 - **`medicines` (1) to `inventory_alerts` (N)**: Automatic threshold warnings triggered when stock &le; 10 units or expiring within 30 days.
 - **`suppliers` (1) to `medicines` (N)**: Pharmaceutical manufacturers/distributors supplying medication batches.
+

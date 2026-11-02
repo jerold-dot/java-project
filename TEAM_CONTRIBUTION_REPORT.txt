@@ -1,0 +1,246 @@
+========================================================================================
+         PHARMACY INVENTORY & BILLING MANAGEMENT SYSTEM — JAVA & MySQL
+                       TEAM WORKLOAD & CONTRIBUTION REPORT
+========================================================================================
+
+Project Name: Pharmacy Inventory & Billing Management System
+Technology Stack: Core Java (JDK 17), Java Swing GUI, MySQL Server 8.0, JDBC
+Source Repository: https://github.com/jerold-dot/java-project.git
+Target Delivery: Academic Project Presentation & Viva Evaluation
+
+----------------------------------------------------------------------------------------
+EXECUTIVE SUMMARY: WORKLOAD DISTRIBUTION
+----------------------------------------------------------------------------------------
+The project was structured into six complementary modules designed to give each team
+member an equal, substantial, and clearly identifiable contribution (16.67% each).
+Every member is directly responsible for specific OOP concepts, code sections in
+'project.java', database schema definitions, and presentation deliverables.
+
++----+-------------------+--------------------------------------------+--------------+
+| No | Team Member       | Assigned Module / Domain Role              | Contribution |
++----+-------------------+--------------------------------------------+--------------+
+| 1  | Diya              | Core OOP Domain Modeling & Abstraction     |   16.67%     |
+| 2  | Keerthana         | Database Architecture & MySQL Persistence  |   16.67%     |
+| 3  | Yelena            | Stock Refill Engine & Proactive Alerts     |   16.67%     |
+| 4  | Abitta            | Billing Engine & Transactional ACID Logic  |   16.67%     |
+| 5  | Sankari           | Swing GUI Layout & Click-to-Invoice Views  |   16.67%     |
+| 6  | Jerold (Lead)     | System Architecture, DevOps & Integration  |   16.67%     |
++----+-------------------+--------------------------------------------+--------------+
+|    | TOTAL             | 6 Specialized Modules (Balanced Workload)  |  100.00%     |
++----+-------------------+--------------------------------------------+--------------+
+
+========================================================================================
+DETAILED MEMBER CONTRIBUTIONS & CODE MAPPINGS
+========================================================================================
+
+----------------------------------------------------------------------------------------
+1. DIYA — MODULE: CORE OOP DOMAIN MODELING & ABSTRACTION
+----------------------------------------------------------------------------------------
+* Primary Responsibilities:
+  - Designed the foundational object-oriented class hierarchy for the entire application.
+  - Formulated the 'Billable' interface enforcing polymorphic total calculation.
+  - Implemented the 'MedicineCategory' abstract class establishing base domain taxonomy.
+  - Authored the encapsulated 'MedicineBatch' entity class with full getter and setter
+    contracts for data integrity.
+  - Implemented dynamic polymorphism through method overriding (@Override).
+
+* OOP Concepts Demonstrated:
+  - Interfaces ('interface Billable')
+  - Abstract Classes ('abstract static class MedicineCategory')
+  - Class Inheritance ('MedicineBatch extends MedicineCategory implements Billable')
+  - Dynamic Polymorphism (@Override calculateTotalValue() and getCategory())
+  - Encapsulation (Private fields with controlled public accessors)
+
+* Exact Code References:
+  - project.java (Lines 16 - 96)
+    - interface Billable
+    - abstract static class MedicineCategory
+    - static class MedicineBatch (Constructor, Getters, Setters, Overrides)
+
+* Viva / Tutor Demo Talking Points:
+  "I designed the core domain abstraction layer. By creating the Billable interface
+  and MedicineCategory abstract class, I ensured our application strictly adheres
+  to OOP principles like inheritance, encapsulation, and runtime polymorphism."
+
+----------------------------------------------------------------------------------------
+2. KEERTHANA — MODULE: DATABASE ARCHITECTURE & MYSQL PERSISTENCE LAYER
+----------------------------------------------------------------------------------------
+* Primary Responsibilities:
+  - Engineered the relational database schema in MySQL ('pharmacy_db').
+  - Authored 'setup_pharmacy_db.sql' defining table schemas, primary keys, foreign keys,
+    ON DELETE CASCADE constraints, and default sample data.
+  - Developed the 'DatabaseHelper' static class and JDBC connectivity pipeline.
+  - Wrote SQL DML queries with PreparedStatement placeholders to prevent SQL injection.
+  - Implemented database synchronization methods: initializeDatabase(), seedIfEmpty(),
+    getAllMedicines(), and saveOrUpdateMedicine().
+
+* OOP & Technical Concepts Demonstrated:
+  - Relational Database Management (MySQL 8.0, DDL & DML)
+  - JDBC (Java Database Connectivity via DriverManager)
+  - PreparedStatement Parameterization (Security & Performance)
+  - Exception Handling (Catching and logging SQLExceptions, connection fallbacks)
+  - Object-Relational Mapping (Translating SQL ResultSets into Java Objects)
+
+* Exact Code References:
+  - setup_pharmacy_db.sql (Lines 1 - 65)
+  - project.java (Lines 140 - 274)
+    - DatabaseHelper.getConnection()
+    - DatabaseHelper.initializeDatabase()
+    - DatabaseHelper.seedIfEmpty()
+    - DatabaseHelper.saveOrUpdateMedicine()
+    - DatabaseHelper.getAllMedicines()
+
+* Viva / Tutor Demo Talking Points:
+  "I engineered the MySQL database layer and JDBC connectivity in DatabaseHelper.
+  All medicine details and transactions are persistently stored in MySQL using
+  PreparedStatements with foreign key constraints to maintain relational integrity."
+
+----------------------------------------------------------------------------------------
+3. YELENA — MODULE: STOCK REFILL ENGINE & PROACTIVE INVENTORY ALERTS
+----------------------------------------------------------------------------------------
+* Primary Responsibilities:
+  - Designed and implemented the dedicated 'Stock Refill / Updation' modal dialog
+    (stockRefillDialog), completely decoupled from the Add Medicine dialog.
+  - Implemented in-memory and database-level stock increments with real-time UI refresh.
+  - Enabled optional metadata updates during refill (unit price, expiry date, supplier).
+  - Built the proactive Inventory Alert Engine:
+    - Real-time detection of low-stock batches (quantity <= 10 units).
+    - Near-expiry and expired batch calculation using ChronoUnit.DAYS from LocalDate.now().
+  - Authored input sanitization and domain validation rules.
+
+* OOP & Technical Concepts Demonstrated:
+  - Encapsulation & Domain Mutation (Validating updates via setters)
+  - Date & Time API (java.time.LocalDate, java.time.temporal.ChronoUnit)
+  - Custom Input Validation & Error Handling (IllegalArgumentException)
+  - Event Handling & Modal User Interactions
+
+* Exact Code References:
+  - project.java (Lines 413 - 435, Lines 465 - 485, Lines 928 - 954, Lines 1005 - 1105)
+    - refreshAlerts()
+    - stockRefillDialog()
+    - DatabaseHelper.updateStock()
+    - Date & validation checks
+
+* Viva / Tutor Demo Talking Points:
+  "I developed the dedicated Stock Refill feature and the Proactive Alert Engine.
+  The system calculates expiry timelines using modern java.time APIs and alerts the
+  pharmacist whenever a medicine drops below threshold or approaches expiration."
+
+----------------------------------------------------------------------------------------
+4. ABITTA — MODULE: BILLING ENGINE & TRANSACTION INTEGRITY (ACID)
+----------------------------------------------------------------------------------------
+* Primary Responsibilities:
+  - Designed the billing data structures: 'SaleItem' and 'TransactionRecord'.
+  - Engineered the multi-item billing cart mechanism: adding medicines, validating stock
+    limits, verifying non-expired status, and calculating running totals.
+  - Implemented transactional ACID guarantees in DatabaseHelper.saveTransaction():
+    - Disabling auto-commit (conn.setAutoCommit(false))
+    - Inserting transaction headers and line-item details
+    - Decrementing stock quantities in the database
+    - Committing atomically (conn.commit()) or rolling back on error (conn.rollback())
+  - Created automatic sequential invoice number generation (INV-1000, INV-1001, etc.).
+
+* OOP & Technical Concepts Demonstrated:
+  - Class Composition / Aggregation (TransactionRecord composed of List<SaleItem>)
+  - Transactional Integrity & Rollbacks (ACID principles in JDBC)
+  - Business Rules Enforcement (Preventing sale of expired or insufficient stock)
+  - String Formatting & Mathematical Calculations
+
+* Exact Code References:
+  - project.java (Lines 98 - 139, Lines 275 - 355, Lines 560 - 675, Lines 830 - 880)
+    - static class SaleItem
+    - static class TransactionRecord
+    - DatabaseHelper.saveTransaction() [with transaction rollback]
+    - DatabaseHelper.getNextBillNumber()
+    - PharmacyFrame.billingPanel() & checkout actions
+
+* Viva / Tutor Demo Talking Points:
+  "I implemented the billing engine and transaction persistence. When a customer
+  purchases medicines, the system executes an atomic transaction in MySQL with
+  rollback capabilities so that stock updates and invoice generation never desync."
+
+----------------------------------------------------------------------------------------
+5. SANKARI — MODULE: SWING GUI ARCHITECTURE & INTERACTIVE INVOICE SYSTEM
+----------------------------------------------------------------------------------------
+* Primary Responsibilities:
+  - Built the graphical user interface extending Swing's 'JFrame' (PharmacyFrame).
+  - Designed the organized 4-tab interface using 'JTabbedPane' (Inventory, Billing,
+    Transactions, Alerts).
+  - Implemented real-time dynamic tables using 'JTable' and 'DefaultTableModel' for
+    inventory viewing and cart line items.
+  - Designed the enhanced Transaction History panel with custom ListCellRenderer:
+    alternating row colors, bold header information, and clean separator lines.
+  - Implemented the interactive Click-to-Invoice dialog (showInvoiceDialog): clicking
+    any transaction pops up a formatted, monospace, printable invoice breakdown.
+
+* OOP & Technical Concepts Demonstrated:
+  - GUI Framework Inheritance ('PharmacyFrame extends JFrame')
+  - Event-Driven Programming (ActionListener, MouseListener, WindowAdapter)
+  - Custom UI Rendering (ListCellRenderer component building)
+  - Layout Managers (BorderLayout, FlowLayout, GridLayout)
+
+* Exact Code References:
+  - project.java (Lines 738 - 825, Lines 890 - 1004)
+    - class PharmacyFrame extends JFrame
+    - inventoryPanel()
+    - historyPanel() with custom ListCellRenderer
+    - showInvoiceDialog()
+    - Table models & event listeners
+
+* Viva / Tutor Demo Talking Points:
+  "I developed the Swing user interface. I created a clean tabbed layout with
+  custom cell renderers for transaction history and an interactive click-to-invoice
+  feature that lets tutors and users inspect full itemized receipts with a single click."
+
+----------------------------------------------------------------------------------------
+6. JEROLD (TEAM LEAD) — MODULE: SYSTEM INTEGRATION, DEVOPS & ARCHITECTURE
+----------------------------------------------------------------------------------------
+* Primary Responsibilities:
+  - Overall project architect: merged separate modules and DatabaseHelper into a single,
+    cohesive, fully compatible 'project.java'.
+  - Engineered the automated build and execution launcher 'run.bat' that handles
+    classpath resolution, MySQL connector linking, and Java 17 release compatibility.
+  - Implemented application entry points: 'PharmacyManagementSystem.main()' and 'class Main'.
+  - Created formal architectural diagrams:
+    - UML Class Diagram ('class_diagram.png' / 'class_diagram.svg' / 'UML_CLASS_DIAGRAM.md')
+    - Database ER Diagram ('database_er_diagram.png' / 'database_er_diagram.svg' / 'DATABASE_ER_DIAGRAM.md')
+  - Maintained Git repository version control (branch 'main'), commit hygiene, and
+    authored the Tutor Demonstration Guide ('tutor_demo_guide.txt').
+
+* OOP & Technical Concepts Demonstrated:
+  - System Lifecycle Management & Concurrency ('SwingUtilities.invokeLater')
+  - Build Automation & JVM Compatibility flags ('javac --release 17')
+  - Software Architecture Design (UML Class Diagrams & ER Modeling)
+  - DevOps, Repository Management & Code Integration
+
+* Exact Code References:
+  - run.bat (Automated build & execution pipeline)
+  - project.java (Lines 1 - 15, Lines 435 - 442, Lines 1125 - 1130)
+  - class_diagram.png & class_diagram.svg
+  - database_er_diagram.png & database_er_diagram.svg
+  - tutor_demo_guide.txt & README.md
+
+* Viva / Tutor Demo Talking Points:
+  "As team lead, I coordinated the integration of all modules into a single unified
+  codebase, created the automated run script, designed the UML and ER diagrams,
+  and ensured our application compiles cleanly with zero warnings under Java 17."
+
+========================================================================================
+EVALUATION CHECKLIST FOR TUTOR PRESENTATION
+========================================================================================
+
+[X] Class Design: Private fields, public getters/setters, modular static inner classes
+[X] Object Creation: Instantiating domain batches, sale items, and frames via 'new'
+[X] Constructor: Parameterized constructors in MedicineBatch, SaleItem, TransactionRecord
+[X] Abstract Class: 'abstract static class MedicineCategory'
+[X] Polymorphism: Method overriding (@Override) and interface realization
+[X] Inheritance: 'MedicineBatch extends MedicineCategory' and 'PharmacyFrame extends JFrame'
+[X] Interface: 'interface Billable' implemented by MedicineBatch
+[X] Exception Handling: try-catch-finally, SQLException handling, transactional rollbacks
+[X] Swing GUI: JFrame, JTabbedPane, JTable, JList, custom ListCellRenderer, JOptionPane
+[X] Database: MySQL Server 8.0, JDBC DriverManager, PreparedStatements, relational schema
+
+========================================================================================
+Report Generated for Academic Record.
+All rights reserved © 2026 Pharmacy Inventory & Billing Management System Team.
+========================================================================================
