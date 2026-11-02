@@ -8,3 +8,6 @@
 .vscode/
 .idea/
 *.iml
+
+# Temporary Office files
+~$*

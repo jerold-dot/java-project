@@ -78,6 +78,18 @@ class PharmacyManagementSystem {
             this.quantity = quantity;
         }
 
+        public void setUnitPrice(double unitPrice) {
+            this.unitPrice = unitPrice;
+        }
+
+        public void setExpiryDate(LocalDate expiryDate) {
+            this.expiryDate = expiryDate;
+        }
+
+        public void setSupplier(String supplier) {
+            this.supplier = supplier;
+        }
+
         public LocalDate getExpiryDate() {
             return expiryDate;
         }
@@ -742,7 +754,9 @@ class PharmacyManagementSystem {
         private final JTable cartTable = new JTable(cartModel);
         private final JComboBox<String> medicineCombo = new JComboBox<>();
         private final JTextArea alertsArea = new JTextArea();
-        private final JTextArea historyArea = new JTextArea();
+        // Transaction history list — supports separators + click-to-invoice
+        private final DefaultListModel<TransactionRecord> historyListModel = new DefaultListModel<>();
+        private final JList<TransactionRecord> historyList = new JList<>(historyListModel);
         private final JLabel status = new JLabel(" Connected to MySQL (pharmacy_db)");
 
         PharmacyFrame() {
@@ -778,11 +792,14 @@ class PharmacyManagementSystem {
         private JPanel inventoryPanel() {
             JPanel panel = new JPanel(new BorderLayout(8, 8));
             JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT));
-            JButton add = new JButton("Add / Update Medicine");
+            JButton add = new JButton("Add New Medicine");
+            JButton refill = new JButton("Refill / Update Stock");
             JButton refresh = new JButton("Refresh");
             add.addActionListener(e -> medicineDialog());
+            refill.addActionListener(e -> stockRefillDialog());
             refresh.addActionListener(e -> refreshAll());
             buttons.add(add);
+            buttons.add(refill);
             buttons.add(refresh);
             panel.add(buttons, BorderLayout.NORTH);
             stockTable.setAutoCreateRowSorter(true);
@@ -876,13 +893,126 @@ class PharmacyManagementSystem {
 
         private JPanel historyPanel() {
             JPanel panel = new JPanel(new BorderLayout(8, 8));
+
+            // --- Top bar ---
+            JPanel topBar = new JPanel(new BorderLayout());
+            JLabel hint = new JLabel("  Click a transaction to view its invoice ");
+            hint.setFont(new Font(Font.SANS_SERIF, Font.ITALIC, 12));
+            hint.setForeground(new java.awt.Color(80, 80, 180));
             JButton refresh = new JButton("Refresh History");
             refresh.addActionListener(e -> refreshHistory());
-            panel.add(refresh, BorderLayout.NORTH);
-            historyArea.setEditable(false);
-            historyArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 13));
-            panel.add(new JScrollPane(historyArea), BorderLayout.CENTER);
+            topBar.add(hint, BorderLayout.WEST);
+            topBar.add(refresh, BorderLayout.EAST);
+            panel.add(topBar, BorderLayout.NORTH);
+
+            // --- Custom cell renderer: each transaction row + separator ---
+            historyList.setCellRenderer(new javax.swing.ListCellRenderer<TransactionRecord>() {
+                @Override
+                public java.awt.Component getListCellRendererComponent(
+                        JList<? extends TransactionRecord> list, TransactionRecord t,
+                        int index, boolean isSelected, boolean cellHasFocus) {
+
+                    JPanel cell = new JPanel(new BorderLayout());
+                    cell.setOpaque(true);
+                    cell.setBorder(javax.swing.BorderFactory.createEmptyBorder(6, 10, 4, 10));
+
+                    // Header line: Bill ID | Date | Customer | Total
+                    JLabel header = new JLabel(
+                        t.billId + "   |   " + t.date + "   |   " + t.customerName
+                        + "   |   Total: \u20B9" + String.format("%.2f", t.totalAmount));
+                    header.setFont(new Font(Font.MONOSPACED, Font.BOLD, 13));
+                    header.setForeground(isSelected
+                        ? java.awt.Color.WHITE
+                        : new java.awt.Color(30, 80, 160));
+
+                    // Item lines below the header
+                    StringBuilder itemLines = new StringBuilder("<html><font face='Monospaced' size='3' color='"
+                        + (isSelected ? "#ddddff" : "#444444") + "'>");
+                    for (SaleItem si : t.items)
+                        itemLines.append("&nbsp;&nbsp;&nbsp;&#8250; ")
+                            .append(si.batch.getName())
+                            .append(" &times; ").append(si.quantitySold)
+                            .append(" &nbsp;=&nbsp; \u20B9")
+                            .append(String.format("%.2f", si.subtotal))
+                            .append("<br>");
+                    itemLines.append("</font></html>");
+                    JLabel items = new JLabel(itemLines.toString());
+
+                    // Separator line at bottom
+                    JPanel sep = new JPanel();
+                    sep.setPreferredSize(new java.awt.Dimension(0, 1));
+                    sep.setBackground(new java.awt.Color(180, 200, 230));
+
+                    cell.add(header, BorderLayout.NORTH);
+                    cell.add(items, BorderLayout.CENTER);
+                    cell.add(sep, BorderLayout.SOUTH);
+
+                    if (isSelected) {
+                        cell.setBackground(new java.awt.Color(70, 130, 220));
+                    } else {
+                        cell.setBackground(index % 2 == 0
+                            ? java.awt.Color.WHITE
+                            : new java.awt.Color(245, 248, 255));
+                    }
+                    return cell;
+                }
+            });
+
+            historyList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+            historyList.setFixedCellHeight(-1); // variable height
+
+            // Click listener -> show invoice dialog
+            historyList.addMouseListener(new java.awt.event.MouseAdapter() {
+                @Override
+                public void mouseClicked(java.awt.event.MouseEvent e) {
+                    int idx = historyList.locationToIndex(e.getPoint());
+                    if (idx >= 0 && historyListModel.getSize() > 0) {
+                        TransactionRecord t = historyListModel.getElementAt(idx);
+                        showInvoiceDialog(t);
+                    }
+                }
+            });
+
+            panel.add(new JScrollPane(historyList), BorderLayout.CENTER);
             return panel;
+        }
+
+        /** Builds and shows a formatted invoice dialog for a transaction */
+        private void showInvoiceDialog(TransactionRecord t) {
+            String SEP  = "=".repeat(60);
+            String DASH = "-".repeat(60);
+            StringBuilder inv = new StringBuilder();
+            inv.append(SEP).append("\n");
+            inv.append(String.format("%25s INVOICE%n", ""));
+            inv.append(SEP).append("\n");
+            inv.append(String.format("Bill ID : %-20s Date: %s%n", t.billId, t.date));
+            inv.append(String.format("Customer: %s%n", t.customerName));
+            inv.append(DASH).append("\n");
+            inv.append(String.format("%-22s | %-10s | %-5s | %s%n",
+                "Medicine", "Price", "Qty", "Subtotal"));
+            inv.append(DASH).append("\n");
+            for (SaleItem si : t.items) {
+                inv.append(String.format("%-22s | \u20B9%-9.2f | %-5d | \u20B9%.2f%n",
+                    si.batch.getName(),
+                    si.batch.getUnitPrice(),
+                    si.quantitySold,
+                    si.subtotal));
+            }
+            inv.append(DASH).append("\n");
+            inv.append(String.format("TOTAL PAYABLE: \u20B9%.2f%n", t.totalAmount));
+            inv.append(SEP).append("\n");
+
+            JTextArea area = new JTextArea(inv.toString());
+            area.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 13));
+            area.setEditable(false);
+            area.setBackground(new java.awt.Color(30, 30, 30));
+            area.setForeground(new java.awt.Color(220, 220, 220));
+            area.setMargin(new java.awt.Insets(12, 16, 12, 16));
+            JScrollPane sp = new JScrollPane(area);
+            sp.setPreferredSize(new java.awt.Dimension(520, 280));
+
+            JOptionPane.showMessageDialog(this, sp,
+                "Invoice — " + t.billId, JOptionPane.PLAIN_MESSAGE);
         }
 
         private List<MedicineBatch> orderedStock() {
@@ -938,17 +1068,12 @@ class PharmacyManagementSystem {
         }
 
         private void refreshHistory() {
-            StringBuilder s = new StringBuilder();
-            if (transactionHistory.isEmpty())
-                s.append("No transactions recorded yet.");
-            for (TransactionRecord t : transactionHistory) {
-                s.append(t.billId).append(" | ").append(t.date).append(" | ").append(t.customerName)
-                        .append(" | Total: ₹").append(String.format("%.2f", t.totalAmount)).append("\n");
-                for (SaleItem i : t.items)
-                    s.append("   ").append(i.batch.getName()).append(" x ").append(i.quantitySold)
-                            .append(" = ₹").append(String.format("%.2f", i.subtotal)).append("\n");
-            }
-            historyArea.setText(s.toString());
+            historyListModel.clear();
+            // Add transactions in reverse order (newest first)
+            List<TransactionRecord> sorted = new ArrayList<>(transactionHistory);
+            java.util.Collections.reverse(sorted);
+            for (TransactionRecord t : sorted)
+                historyListModel.addElement(t);
         }
 
         private void refreshCart(JLabel total) {
@@ -964,42 +1089,143 @@ class PharmacyManagementSystem {
                     mfg = new JTextField("" + LocalDate.now()),
                     exp = new JTextField("" + LocalDate.now().plusMonths(12)),
                     supplier = new JTextField(), price = new JTextField();
-            Object[] fields = { "ID (existing ID adds stock):", id, "Medicine name:", name, "Batch number:", batch,
-                    "Quantity:", qty, "Manufacturing date (YYYY-MM-DD):", mfg, "Expiry date (YYYY-MM-DD):", exp,
+            Object[] fields = { "Medicine ID (new unique ID):", id, "Medicine name:", name, "Batch number:", batch,
+                    "Initial Quantity:", qty, "Manufacturing date (YYYY-MM-DD):", mfg, "Expiry date (YYYY-MM-DD):", exp,
                     "Supplier:", supplier, "Unit price:", price };
-            if (JOptionPane.showConfirmDialog(this, fields, "Add / Update Medicine",
+            if (JOptionPane.showConfirmDialog(this, fields, "Add New Medicine",
                     JOptionPane.OK_CANCEL_OPTION) != JOptionPane.OK_OPTION)
                 return;
             try {
                 if (id.getText().trim().isEmpty())
                     throw new IllegalArgumentException("ID is required");
+                if (inventory.containsKey(id.getText().trim()))
+                    throw new IllegalArgumentException("ID already exists. Use 'Refill / Update Stock' to add quantity to an existing medicine.");
                 int amount = Integer.parseInt(qty.getText().trim());
                 if (amount <= 0)
                     throw new IllegalArgumentException("Quantity must be positive");
-                if (inventory.containsKey(id.getText().trim())) {
-                    MedicineBatch existing = inventory.get(id.getText().trim());
-                    existing.setQuantity(existing.getQuantity() + amount);
-                    DatabaseHelper.saveOrUpdateMedicine(existing);
-                } else {
-                    LocalDate manufacturingDate = LocalDate.parse(mfg.getText().trim(), DATE_FORMAT);
-                    LocalDate expiryDate = LocalDate.parse(exp.getText().trim(), DATE_FORMAT);
-                    if (manufacturingDate.isAfter(expiryDate))
-                        throw new IllegalArgumentException("Manufacturing date cannot be after expiry date");
-                    if (expiryDate.isBefore(LocalDate.now()))
-                        throw new IllegalArgumentException("New medicine cannot already be expired");
-                    double unitPrice = Double.parseDouble(price.getText().trim());
-                    if (!Double.isFinite(unitPrice) || unitPrice < 0)
-                        throw new IllegalArgumentException("Unit price must be zero or greater");
-                    MedicineBatch newBatch = new MedicineBatch(id.getText().trim(), name.getText().trim(),
-                            batch.getText().trim(), amount, manufacturingDate, expiryDate,
-                            supplier.getText().trim(), unitPrice);
-                    DatabaseHelper.saveOrUpdateMedicine(newBatch);
-                }
+                LocalDate manufacturingDate = LocalDate.parse(mfg.getText().trim(), DATE_FORMAT);
+                LocalDate expiryDate = LocalDate.parse(exp.getText().trim(), DATE_FORMAT);
+                if (manufacturingDate.isAfter(expiryDate))
+                    throw new IllegalArgumentException("Manufacturing date cannot be after expiry date");
+                if (expiryDate.isBefore(LocalDate.now()))
+                    throw new IllegalArgumentException("New medicine cannot already be expired");
+                double unitPrice = Double.parseDouble(price.getText().trim());
+                if (!Double.isFinite(unitPrice) || unitPrice < 0)
+                    throw new IllegalArgumentException("Unit price must be zero or greater");
+                MedicineBatch newBatch = new MedicineBatch(id.getText().trim(), name.getText().trim(),
+                        batch.getText().trim(), amount, manufacturingDate, expiryDate,
+                        supplier.getText().trim(), unitPrice);
+                DatabaseHelper.saveOrUpdateMedicine(newBatch);
                 syncFromDatabase();
                 refreshAll();
-                status.setText(" Medicine saved to MySQL database successfully.");
+                status.setText(" New medicine '" + name.getText().trim() + "' added to MySQL database.");
             } catch (Exception ex) {
                 error("Invalid input: " + ex.getMessage());
+            }
+        }
+
+        private void stockRefillDialog() {
+            if (inventory.isEmpty()) {
+                error("No medicines in stock. Add a medicine first.");
+                return;
+            }
+
+            // Build dropdown from existing medicines
+            String[] medicineOptions = orderedStock().stream()
+                    .map(b -> b.getId() + " - " + b.getName() + "  [Current Stock: " + b.getQuantity() + " units]")
+                    .toArray(String[]::new);
+
+            JComboBox<String> medSelect = new JComboBox<>(medicineOptions);
+            medSelect.setPrototypeDisplayValue("MXXX - Medicine Name  [Current Stock: 999 units]");
+
+            JTextField addQtyField = new JTextField("0");
+            JTextField newPriceField = new JTextField();
+            JTextField newExpiryField = new JTextField();
+            JTextField newSupplierField = new JTextField();
+
+            // Update placeholder details when medicine selection changes
+            Runnable updateFields = () -> {
+                String selected = (String) medSelect.getSelectedItem();
+                if (selected == null) return;
+                String id = selected.split(" - ")[0].trim();
+                MedicineBatch b = inventory.get(id);
+                if (b != null) {
+                    newPriceField.setText(String.valueOf(b.getUnitPrice()));
+                    newExpiryField.setText(b.getExpiryDate().format(DATE_FORMAT));
+                    newSupplierField.setText(b.getSupplier());
+                }
+            };
+            medSelect.addActionListener(e -> updateFields.run());
+            updateFields.run(); // populate on open
+
+            Object[] fields = {
+                    "Select Medicine to Refill:", medSelect,
+                    "Quantity to ADD (units):", addQtyField,
+                    "Update Unit Price (₹, leave as-is to keep current):", newPriceField,
+                    "Update Expiry Date (YYYY-MM-DD, leave as-is to keep current):", newExpiryField,
+                    "Update Supplier (leave as-is to keep current):", newSupplierField
+            };
+
+            if (JOptionPane.showConfirmDialog(this, fields, "Refill / Update Stock",
+                    JOptionPane.OK_CANCEL_OPTION) != JOptionPane.OK_OPTION)
+                return;
+
+            try {
+                String selected = (String) medSelect.getSelectedItem();
+                if (selected == null) return;
+                String id = selected.split(" - ")[0].trim();
+                MedicineBatch existing = inventory.get(id);
+                if (existing == null) throw new IllegalArgumentException("Medicine not found.");
+
+                int addQty = Integer.parseInt(addQtyField.getText().trim());
+                if (addQty < 0)
+                    throw new IllegalArgumentException("Quantity to add cannot be negative.");
+
+                // Apply updates
+                int newQty = existing.getQuantity() + addQty;
+                existing.setQuantity(newQty);
+
+                String priceText = newPriceField.getText().trim();
+                if (!priceText.isEmpty()) {
+                    double newPrice = Double.parseDouble(priceText);
+                    if (!Double.isFinite(newPrice) || newPrice < 0)
+                        throw new IllegalArgumentException("Price must be zero or greater.");
+                    existing.setUnitPrice(newPrice);
+                }
+
+                String expiryText = newExpiryField.getText().trim();
+                if (!expiryText.isEmpty()) {
+                    LocalDate newExpiry = LocalDate.parse(expiryText, DATE_FORMAT);
+                    if (newExpiry.isBefore(LocalDate.now()))
+                        throw new IllegalArgumentException("Updated expiry date cannot be in the past.");
+                    existing.setExpiryDate(newExpiry);
+                }
+
+                String supplierText = newSupplierField.getText().trim();
+                if (!supplierText.isEmpty()) {
+                    existing.setSupplier(supplierText);
+                }
+
+                // Persist to MySQL
+                DatabaseHelper.saveOrUpdateMedicine(existing);
+                syncFromDatabase();
+                refreshAll();
+                status.setText(" Stock refilled for '" + existing.getName() + "': +" + addQty +
+                        " units. New total: " + existing.getQuantity() + " units. Saved to MySQL.");
+
+                JOptionPane.showMessageDialog(this,
+                        "Stock Refill Successful!\n\n" +
+                        "Medicine   : " + existing.getName() + "\n" +
+                        "Units Added: " + addQty + "\n" +
+                        "New Stock  : " + existing.getQuantity() + " units\n" +
+                        "Unit Price : ₹" + String.format("%.2f", existing.getUnitPrice()) + "\n" +
+                        "Expiry Date: " + existing.getExpiryDate() + "\n" +
+                        "Supplier   : " + existing.getSupplier() + "\n\n" +
+                        "✓ Changes saved to MySQL database.",
+                        "Stock Updated", JOptionPane.INFORMATION_MESSAGE);
+
+            } catch (Exception ex) {
+                error("Stock update failed: " + ex.getMessage());
             }
         }
 
