@@ -11,3 +11,9 @@
 
 # Temporary Office files
 ~$*
+
+# Tutor & internal team reports
+tutor_demo_guide.txt
+*tutor*.txt
+TEAM_CONTRIBUTION_REPORT.*
+
