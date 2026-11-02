@@ -1,0 +1,192 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2500 1800" width="100%" height="100%" style="background-color: #ffffff; font-family: Arial, sans-serif;">
+  <defs>
+    <!-- Hollow triangle marker for generalization / realization (extends / implements) -->
+    <marker id="generalization" viewBox="0 0 20 20" refX="18" refY="10" markerWidth="14" markerHeight="14" orient="auto-start-reverse">
+      <polygon points="18,10 2,2 2,18" fill="#ffffff" stroke="#000000" stroke-width="2" />
+    </marker>
+    <!-- Filled diamond marker for composition -->
+    <marker id="composition" viewBox="0 0 24 16" refX="2" refY="8" markerWidth="16" markerHeight="12" orient="auto-start-reverse">
+      <polygon points="2,8 12,2 22,8 12,14" fill="#000000" stroke="#000000" stroke-width="2" />
+    </marker>
+  </defs>
+
+  <style>
+    .class-box { fill: #ffffff; stroke: #000000; stroke-width: 2.5; }
+    .divider { stroke: #000000; stroke-width: 2.5; }
+    .class-title { font-size: 21px; font-weight: bold; text-anchor: middle; fill: #000000; }
+    .stereotype { font-size: 16px; font-style: italic; text-anchor: middle; fill: #333333; }
+    .text-attr { font-size: 16px; fill: #000000; font-family: 'Consolas', 'Courier New', monospace; }
+    .text-meth { font-size: 16px; fill: #000000; font-family: 'Consolas', 'Courier New', monospace; }
+    .rel-line { stroke: #000000; stroke-width: 2.5; fill: none; }
+    .dashed-line { stroke: #000000; stroke-width: 2.5; stroke-dasharray: 8,6; fill: none; }
+    .rel-label { font-size: 16px; font-style: italic; fill: #222222; }
+    .multiplicity { font-size: 16px; font-weight: bold; fill: #000000; }
+    .caption { font-size: 26px; font-weight: bold; font-family: 'Times New Roman', serif; text-anchor: middle; fill: #000000; }
+  </style>
+
+  <!-- ==================== 1. <<interface>> Billable ==================== -->
+  <g id="class-Billable">
+    <rect class="class-box" x="120" y="80" width="400" height="130" />
+    <text class="stereotype" x="320" y="112">&lt;&lt;interface&gt;&gt;</text>
+    <text class="class-title" x="320" y="138">Billable</text>
+    <line class="divider" x1="120" y1="155" x2="520" y2="155" />
+    <text class="text-meth" x="140" y="188">+calculateTotalValue(): double</text>
+  </g>
+
+  <!-- ==================== 2. <<abstract>> MedicineCategory ==================== -->
+  <g id="class-MedicineCategory">
+    <rect class="class-box" x="650" y="70" width="460" height="170" />
+    <text class="stereotype" x="880" y="104">&lt;&lt;abstract&gt;&gt;</text>
+    <text class="class-title" x="880" y="130">MedicineCategory</text>
+    <line class="divider" x1="650" y1="145" x2="1110" y2="145" />
+    <text class="text-attr" x="670" y="174">-categoryName: String</text>
+    <line class="divider" x1="650" y1="190" x2="1110" y2="190" />
+    <text class="text-meth" x="670" y="218">+getCategory(): String {abstract}</text>
+  </g>
+
+  <!-- ==================== 3. DatabaseHelper ==================== -->
+  <g id="class-DatabaseHelper">
+    <rect class="class-box" x="1750" y="70" width="630" height="340" />
+    <text class="class-title" x="2065" y="105">DatabaseHelper</text>
+    <line class="divider" x1="1750" y1="120" x2="2380" y2="120" />
+    <text class="text-attr" x="1770" y="148">-DB_URL: String = "jdbc:mysql://..."</text>
+    <text class="text-attr" x="1770" y="176">-USER: String = "root"</text>
+    <text class="text-attr" x="1770" y="204">-PASSWORD: String</text>
+    <line class="divider" x1="1750" y1="220" x2="2380" y2="220" />
+    <text class="text-meth" x="1770" y="248">+getConnection(): Connection</text>
+    <text class="text-meth" x="1770" y="274">+initializeDatabase(): void</text>
+    <text class="text-meth" x="1770" y="300">+saveOrUpdateMedicine(m: MedicineBatch): boolean</text>
+    <text class="text-meth" x="1770" y="326">+getAllMedicines(): List&lt;MedicineBatch&gt;</text>
+    <text class="text-meth" x="1770" y="352">+updateStock(id: String, newQty: int): void</text>
+    <text class="text-meth" x="1770" y="378">+saveTransaction(t: TransactionRecord): boolean</text>
+  </g>
+
+  <!-- ==================== 4. MedicineBatch ==================== -->
+  <g id="class-MedicineBatch">
+    <rect class="class-box" x="480" y="440" width="540" height="580" />
+    <text class="class-title" x="750" y="475">MedicineBatch</text>
+    <line class="divider" x1="480" y1="492" x2="1020" y2="492" />
+    <text class="text-attr" x="500" y="520">-id: String</text>
+    <text class="text-attr" x="500" y="546">-name: String</text>
+    <text class="text-attr" x="500" y="572">-batchNumber: String</text>
+    <text class="text-attr" x="500" y="598">-quantity: int</text>
+    <text class="text-attr" x="500" y="624">-manufacturingDate: LocalDate</text>
+    <text class="text-attr" x="500" y="650">-expiryDate: LocalDate</text>
+    <text class="text-attr" x="500" y="676">-supplier: String</text>
+    <text class="text-attr" x="500" y="702">-unitPrice: double</text>
+    <line class="divider" x1="480" y1="718" x2="1020" y2="718" />
+    <text class="text-meth" x="500" y="746">+MedicineBatch(id, name, batchNo, qty, ...)</text>
+    <text class="text-meth" x="500" y="772">+getCategory(): String</text>
+    <text class="text-meth" x="500" y="798">+calculateTotalValue(): double</text>
+    <text class="text-meth" x="500" y="824">+getId(): String</text>
+    <text class="text-meth" x="500" y="850">+getName(): String</text>
+    <text class="text-meth" x="500" y="876">+getQuantity(): int</text>
+    <text class="text-meth" x="500" y="902">+setQuantity(quantity: int): void</text>
+    <text class="text-meth" x="500" y="928">+getUnitPrice(): double</text>
+    <text class="text-meth" x="500" y="954">+setUnitPrice(unitPrice: double): void</text>
+    <text class="text-meth" x="500" y="980">+setExpiryDate(expiryDate: LocalDate): void</text>
+    <text class="text-meth" x="500" y="1006">+setSupplier(supplier: String): void</text>
+  </g>
+
+  <!-- ==================== 5. SaleItem ==================== -->
+  <g id="class-SaleItem">
+    <rect class="class-box" x="1200" y="510" width="460" height="190" />
+    <text class="class-title" x="1430" y="545">SaleItem</text>
+    <line class="divider" x1="1200" y1="560" x2="1660" y2="560" />
+    <text class="text-attr" x="1220" y="590">-batch: MedicineBatch</text>
+    <text class="text-attr" x="1220" y="618">-quantitySold: int</text>
+    <text class="text-attr" x="1220" y="646">-subtotal: double</text>
+    <line class="divider" x1="1200" y1="662" x2="1660" y2="662" />
+    <text class="text-meth" x="1220" y="690">+SaleItem(batch: MedicineBatch, qty: int)</text>
+  </g>
+
+  <!-- ==================== 6. TransactionRecord ==================== -->
+  <g id="class-TransactionRecord">
+    <rect class="class-box" x="1200" y="860" width="480" height="230" />
+    <text class="class-title" x="1440" y="895">TransactionRecord</text>
+    <line class="divider" x1="1200" y1="910" x2="1680" y2="910" />
+    <text class="text-attr" x="1220" y="938">-billId: String</text>
+    <text class="text-attr" x="1220" y="964">-customerName: String</text>
+    <text class="text-attr" x="1220" y="990">-date: LocalDate</text>
+    <text class="text-attr" x="1220" y="1016">-items: List&lt;SaleItem&gt;</text>
+    <text class="text-attr" x="1220" y="1042">-totalAmount: double</text>
+    <line class="divider" x1="1200" y1="1056" x2="1680" y2="1056" />
+    <text class="text-meth" x="1220" y="1082">+TransactionRecord(billId, cust, date, items, total)</text>
+  </g>
+
+  <!-- ==================== 7. PharmacyFrame (GUI) ==================== -->
+  <g id="class-PharmacyFrame">
+    <rect class="class-box" x="100" y="1170" width="600" height="420" />
+    <text class="class-title" x="400" y="1205">PharmacyFrame</text>
+    <text class="stereotype" x="400" y="1228">&lt;&lt;extends JFrame&gt;&gt;</text>
+    <line class="divider" x1="100" y1="1240" x2="700" y2="1240" />
+    <text class="text-attr" x="120" y="1268">-stockTable: JTable</text>
+    <text class="text-attr" x="120" y="1294">-cartTable: JTable</text>
+    <text class="text-attr" x="120" y="1320">-historyList: JList&lt;TransactionRecord&gt;</text>
+    <text class="text-attr" x="120" y="1346">-alertsArea: JTextArea</text>
+    <line class="divider" x1="100" y1="1360" x2="700" y2="1360" />
+    <text class="text-meth" x="120" y="1390">+PharmacyFrame()</text>
+    <text class="text-meth" x="120" y="1418">+inventoryPanel(): JPanel</text>
+    <text class="text-meth" x="120" y="1446">+billingPanel(): JPanel</text>
+    <text class="text-meth" x="120" y="1474">+historyPanel(): JPanel</text>
+    <text class="text-meth" x="120" y="1502">+alertsPanel(): JPanel</text>
+    <text class="text-meth" x="120" y="1530">+stockRefillDialog(): void</text>
+    <text class="text-meth" x="120" y="1558">+showInvoiceDialog(t: TransactionRecord): void</text>
+  </g>
+
+  <!-- ==================== 8. PharmacyManagementSystem ==================== -->
+  <g id="class-PharmacyManagementSystem">
+    <rect class="class-box" x="800" y="1220" width="530" height="270" />
+    <text class="class-title" x="1065" y="1255">PharmacyManagementSystem</text>
+    <line class="divider" x1="800" y1="1272" x2="1330" y2="1272" />
+    <text class="text-attr" x="820" y="1302">-inventory: Map&lt;String, MedicineBatch&gt;</text>
+    <text class="text-attr" x="820" y="1330">-transactionHistory: List&lt;TransactionRecord&gt;</text>
+    <text class="text-attr" x="820" y="1358">-pendingBillItems: List&lt;SaleItem&gt;</text>
+    <line class="divider" x1="800" y1="1374" x2="1330" y2="1374" />
+    <text class="text-meth" x="820" y="1404">+syncFromDatabase(): void</text>
+    <text class="text-meth" x="820" y="1432">+seedSampleData(): void</text>
+    <text class="text-meth" x="820" y="1460">+main(args: String[]): void</text>
+  </g>
+
+
+  <!-- ==================== RELATIONSHIPS & CONNECTORS ==================== -->
+
+  <!-- MedicineBatch extends MedicineCategory -->
+  <path class="rel-line" marker-end="url(#generalization)" d="M 880,440 L 880,242" />
+  <text class="rel-label" x="895" y="340">extends</text>
+
+  <!-- MedicineBatch implements Billable -->
+  <path class="dashed-line" marker-end="url(#generalization)" d="M 540,440 L 540,320 L 320,320 L 320,212" />
+  <text class="rel-label" x="335" y="305">implements</text>
+
+  <!-- SaleItem references MedicineBatch -->
+  <line class="rel-line" x1="1020" y1="600" x2="1200" y2="600" />
+  <text class="multiplicity" x="1030" y="590">1</text>
+  <text class="multiplicity" x="1165" y="590">0..*</text>
+  <text class="rel-label" x="1065" y="590">references &gt;</text>
+
+  <!-- TransactionRecord composed of SaleItem -->
+  <line class="rel-line" marker-start="url(#composition)" x1="1430" y1="860" x2="1430" y2="700" />
+  <text class="multiplicity" x="1445" y="845">1</text>
+  <text class="multiplicity" x="1445" y="730">1..*</text>
+  <text class="rel-label" x="1445" y="790">contains</text>
+
+  <!-- DatabaseHelper persists MedicineBatch -->
+  <path class="rel-line" d="M 1750,230 L 1100,230 L 1100,520 L 1020,520" />
+  <text class="rel-label" x="1115" y="380">persists / reads &gt;</text>
+
+  <!-- DatabaseHelper saves/loads TransactionRecord -->
+  <path class="rel-line" d="M 2050,410 L 2050,980 L 1680,980" />
+  <text class="rel-label" x="1730" y="965">&lt; saves / loads</text>
+
+  <!-- PharmacyFrame launches/views PharmacyManagementSystem -->
+  <line class="rel-line" x1="700" y1="1350" x2="800" y2="1350" />
+  <text class="rel-label" x="710" y="1340">interacts &gt;</text>
+
+  <!-- PharmacyManagementSystem manages MedicineBatch -->
+  <path class="rel-line" d="M 1065,1220 L 1065,1100 L 750,1100 L 750,1020" />
+  <text class="rel-label" x="765" y="1085">manages stock &gt;</text>
+
+  <!-- ==================== CAPTION ==================== -->
+  <text class="caption" x="1250" y="1740">Figure 5.1: Class Diagram of Pharmacy Management System</text>
+</svg>
