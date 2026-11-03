@@ -35,6 +35,7 @@ class PharmacyManagementSystem {
         private String supplier;
         private double unitPrice;
 
+        // Constructor 1: Full parameterized constructor
         public MedicineBatch(String id, String name, String batchNumber, int quantity,
                 LocalDate manufacturingDate, LocalDate expiryDate,
                 String supplier, double unitPrice) {
@@ -48,14 +49,26 @@ class PharmacyManagementSystem {
             this.unitPrice = unitPrice;
         }
 
+        // Constructor 2: Overloaded constructor (convenience with default 1-year shelf life)
+        public MedicineBatch(String id, String name, String batchNumber, int quantity, double unitPrice) {
+            this(id, name, batchNumber, quantity, LocalDate.now(), LocalDate.now().plusYears(1), "Standard Pharma", unitPrice);
+        }
+
         @Override
         public String getCategory() {
             return "Pharmacy Medicine";
         }
 
+        // Method 1: calculateTotalValue without discount
         @Override
         public double calculateTotalValue() {
             return quantity * unitPrice;
+        }
+
+        // Method Overloading: calculateTotalValue with discount percentage
+        public double calculateTotalValue(double discountPercent) {
+            double baseTotal = calculateTotalValue();
+            return baseTotal - (baseTotal * (discountPercent / 100.0));
         }
 
         public String getId() {
