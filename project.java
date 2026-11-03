@@ -1,6 +1,18 @@
+import java.awt.BasicStroke;
 import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Cursor;
+import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.GradientPaint;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.GridLayout;
+import java.awt.RenderingHints;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.sql.*;
@@ -9,8 +21,16 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import javax.swing.*;
+import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
+import javax.swing.border.LineBorder;
+import javax.swing.border.MatteBorder;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import javax.swing.plaf.basic.BasicScrollBarUI;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.JTableHeader;
 
 class PharmacyManagementSystem {
 
@@ -459,6 +479,30 @@ class PharmacyManagementSystem {
     }
 
     public static void main(String[] args) {
+        // --- Apply Nimbus Look & Feel with custom pharmacy theme colours ---
+        try {
+            for (UIManager.LookAndFeelInfo info : UIManager.getInstalledLookAndFeels()) {
+                if ("Nimbus".equals(info.getName())) {
+                    UIManager.setLookAndFeel(info.getClassName());
+                    break;
+                }
+            }
+        } catch (Exception ignored) {}
+
+        // Nimbus colour overrides — deep navy + teal accent
+        UIManager.put("nimbusBase",               new Color(22, 40, 70));
+        UIManager.put("nimbusBlueGrey",           new Color(45, 62, 98));
+        UIManager.put("control",                  new Color(242, 245, 250));
+        UIManager.put("nimbusFocus",              new Color(0, 188, 212));
+        UIManager.put("nimbusSelectionBackground",new Color(0, 150, 180));
+        UIManager.put("Table.background",         new Color(255, 255, 255));
+        UIManager.put("Table.alternateRowColor",  new Color(235, 245, 252));
+        UIManager.put("Table[Enabled+Selected].textForeground", Color.WHITE);
+        UIManager.put("TabbedPane.background",    new Color(30, 50, 85));
+        UIManager.put("TabbedPane.foreground",    new Color(220, 235, 255));
+        UIManager.put("TabbedPane.selected",      new Color(0, 188, 212));
+        UIManager.put("TabbedPane.contentOpaque", Boolean.FALSE);
+
         DatabaseHelper.initializeDatabase();
         DatabaseHelper.seedIfEmpty();
         syncFromDatabase();
@@ -748,6 +792,26 @@ class PharmacyManagementSystem {
         return true;
     }
 
+    // Wrapper for billing dropdown: encapsulates medicine details, expiry status, and visual formatting
+    static class MedicineComboItem {
+        final MedicineBatch batch;
+        final boolean expired;
+
+        public MedicineComboItem(MedicineBatch batch) {
+            this.batch = batch;
+            this.expired = batch.getExpiryDate().isBefore(LocalDate.now());
+        }
+
+        @Override
+        public String toString() {
+            if (expired) {
+                return "\u25CF [EXPIRED] " + batch.getId() + " - " + batch.getName() + " (Exp: " + batch.getExpiryDate() + ")";
+            } else {
+                return "\u25CF " + batch.getId() + " - " + batch.getName() + " [Stock: " + batch.getQuantity() + " | \u20B9" + String.format("%.2f", batch.getUnitPrice()) + "]";
+            }
+        }
+    }
+
     // --- Swing GUI ---
     static class PharmacyFrame extends JFrame {
         private static final long serialVersionUID = 1L;
@@ -765,7 +829,10 @@ class PharmacyManagementSystem {
         };
         private final JTable stockTable = new JTable(stockModel);
         private final JTable cartTable = new JTable(cartModel);
-        private final JComboBox<String> medicineCombo = new JComboBox<>();
+        // Billing dropdown with type-search and expiry status indicators
+        private final JComboBox<MedicineComboItem> medicineCombo = new JComboBox<>();
+        private final JTextField searchMedicineField = new JTextField(12);
+        private final JLabel expiryBadge = new JLabel();
         private final JTextArea alertsArea = new JTextArea();
         // Transaction history list — supports separators + click-to-invoice
         private final DefaultListModel<TransactionRecord> historyListModel = new DefaultListModel<>();
@@ -774,95 +841,415 @@ class PharmacyManagementSystem {
 
         PharmacyFrame() {
             setTitle("Pharmacy Inventory & Billing System");
-            setSize(1100, 680);
+            setSize(1200, 740);
+            setMinimumSize(new Dimension(900, 600));
             setLocationRelativeTo(null);
             setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
             addWindowListener(new WindowAdapter() {
                 public void windowClosing(WindowEvent e) {
-                    if (JOptionPane.showConfirmDialog(PharmacyFrame.this, "Exit the pharmacy system?", "Confirm Exit",
+                    if (JOptionPane.showConfirmDialog(PharmacyFrame.this,
+                            "Exit the pharmacy system?", "Confirm Exit",
                             JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION)
                         System.exit(0);
                 }
             });
 
-            JPanel root = new JPanel(new BorderLayout(10, 10));
-            root.setBorder(new EmptyBorder(12, 12, 8, 12));
+            // ---- Root Panel (dark navy background) ----
+            JPanel root = new JPanel(new BorderLayout(0, 0));
+            root.setBackground(new Color(18, 30, 54));
             setContentPane(root);
-            JLabel heading = new JLabel("PHARMACY INVENTORY & BILLING SYSTEM");
-            heading.setFont(new Font("SansSerif", Font.BOLD, 22));
-            root.add(heading, BorderLayout.NORTH);
 
-            JTabbedPane tabs = new JTabbedPane();
-            tabs.addTab("Inventory", inventoryPanel());
-            tabs.addTab("Alerts", alertsPanel());
-            tabs.addTab("Billing", billingPanel());
-            tabs.addTab("Transactions", historyPanel());
+            // ---- Top Header Bar ----
+            JPanel header = new JPanel(new BorderLayout()) {
+                @Override protected void paintComponent(Graphics g) {
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+                    g2.setPaint(new GradientPaint(0, 0, new Color(10, 20, 50),
+                            getWidth(), 0, new Color(0, 80, 120)));
+                    g2.fillRect(0, 0, getWidth(), getHeight());
+                    g2.dispose();
+                    super.paintComponent(g);
+                }
+            };
+            header.setOpaque(false);
+            header.setBorder(new EmptyBorder(14, 22, 14, 22));
+
+            // Left: App title + icon
+            JPanel titlePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+            titlePanel.setOpaque(false);
+            JLabel icon = new JLabel("\u2695");   // medical cross unicode
+            icon.setFont(new Font("SansSerif", Font.BOLD, 30));
+            icon.setForeground(new Color(0, 200, 220));
+            JLabel heading = new JLabel("Pharmacy Inventory & Billing System");
+            heading.setFont(new Font("SansSerif", Font.BOLD, 22));
+            heading.setForeground(Color.WHITE);
+            JLabel subheading = new JLabel("  \u2014  pharmacy_db  |  MySQL 8.0");
+            subheading.setFont(new Font("SansSerif", Font.PLAIN, 12));
+            subheading.setForeground(new Color(140, 180, 220));
+            titlePanel.add(icon);
+            titlePanel.add(heading);
+            titlePanel.add(subheading);
+            header.add(titlePanel, BorderLayout.WEST);
+
+            // Right: status dot
+            JPanel statusRight = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+            statusRight.setOpaque(false);
+            status.setForeground(new Color(0, 230, 180));
+            status.setFont(new Font("SansSerif", Font.BOLD, 12));
+            JLabel dot = new JLabel("\u25CF");
+            dot.setForeground(new Color(0, 230, 118));
+            dot.setFont(new Font("SansSerif", Font.PLAIN, 18));
+            statusRight.add(dot);
+            statusRight.add(status);
+            header.add(statusRight, BorderLayout.EAST);
+
+            root.add(header, BorderLayout.NORTH);
+
+            // ---- Tabs ----
+            JTabbedPane tabs = new JTabbedPane(JTabbedPane.TOP);
+            tabs.setFont(new Font("SansSerif", Font.BOLD, 13));
+            tabs.setBackground(new Color(22, 36, 65));
+            tabs.setForeground(new Color(200, 220, 255));
+            tabs.setBorder(new EmptyBorder(4, 10, 0, 10));
+
+            tabs.addTab("\u2302  Inventory", applyTabStyle(inventoryPanel()));
+            tabs.addTab("\u26A0  Alerts", applyTabStyle(alertsPanel()));
+            tabs.addTab("\uD83D\uDCC3  Billing", applyTabStyle(billingPanel()));
+            tabs.addTab("\uD83D\uDCCA  Transactions", applyTabStyle(historyPanel()));
+
+            // Tab icons via colour
+            tabs.setBackgroundAt(0, new Color(25, 118, 210));
+            tabs.setBackgroundAt(1, new Color(230, 74, 25));
+            tabs.setBackgroundAt(2, new Color(46, 125, 50));
+            tabs.setBackgroundAt(3, new Color(106, 27, 154));
+
             root.add(tabs, BorderLayout.CENTER);
-            root.add(status, BorderLayout.SOUTH);
+
+            // ---- Bottom Status Bar ----
+            JPanel footerBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 5));
+            footerBar.setBackground(new Color(15, 23, 45));
+            footerBar.setBorder(new MatteBorder(1, 0, 0, 0, new Color(0, 100, 150)));
+            JLabel footerLabel = new JLabel("  \u00A9 2026 Pharmacy Inventory & Billing System  |  Java 17 + MySQL 8.0  |  All Rights Reserved");
+            footerLabel.setForeground(new Color(100, 130, 175));
+            footerLabel.setFont(new Font("SansSerif", Font.PLAIN, 11));
+            footerBar.add(footerLabel);
+            root.add(footerBar, BorderLayout.SOUTH);
+
+            // ---- Style tables ----
+            styleTable(stockTable);
+            styleTable(cartTable);
+
             refreshAll();
+        }
+
+        /** Wraps a panel in a styled card with dark background */
+        private JPanel applyTabStyle(JPanel inner) {
+            JPanel card = new JPanel(new BorderLayout());
+            card.setBackground(new Color(24, 38, 68));
+            card.setBorder(new EmptyBorder(12, 14, 12, 14));
+            card.add(inner, BorderLayout.CENTER);
+            return card;
+        }
+
+        /** Applies modern table styling: alternating rows, custom header */
+        private void styleTable(JTable table) {
+            table.setRowHeight(28);
+            table.setShowGrid(false);
+            table.setIntercellSpacing(new Dimension(0, 0));
+            table.setSelectionBackground(new Color(0, 150, 200));
+            table.setSelectionForeground(Color.WHITE);
+            table.setBackground(Color.WHITE);
+            table.setForeground(new Color(30, 40, 60));
+            table.setFont(new Font("SansSerif", Font.PLAIN, 13));
+
+            // Header styling
+            JTableHeader tableHeader = table.getTableHeader();
+            tableHeader.setBackground(new Color(22, 60, 105));
+            tableHeader.setForeground(Color.WHITE);
+            tableHeader.setFont(new Font("SansSerif", Font.BOLD, 13));
+            tableHeader.setPreferredSize(new Dimension(0, 34));
+            tableHeader.setBorder(BorderFactory.createEmptyBorder());
+
+            // Alternating row renderer
+            table.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
+                @Override
+                public Component getTableCellRendererComponent(JTable t, Object value,
+                        boolean isSelected, boolean hasFocus, int row, int col) {
+                    Component c = super.getTableCellRendererComponent(t, value, isSelected, hasFocus, row, col);
+                    if (!isSelected) {
+                        c.setBackground(row % 2 == 0 ? Color.WHITE : new Color(235, 245, 255));
+                        c.setForeground(new Color(30, 40, 60));
+                    }
+                    ((JLabel) c).setBorder(new EmptyBorder(0, 10, 0, 10));
+                    return c;
+                }
+            });
+        }
+
+        /** Creates a styled flat button */
+        private JButton styledButton(String text, Color bgColor, Color textColor) {
+            JButton btn = new JButton(text) {
+                @Override protected void paintComponent(Graphics g) {
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    g2.setColor(getModel().isPressed() ? bgColor.darker() :
+                            getModel().isRollover() ? bgColor.brighter() : bgColor);
+                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 14, 14);
+                    g2.dispose();
+                    super.paintComponent(g);
+                }
+                @Override protected void paintBorder(Graphics g) {
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    g2.setColor(bgColor.darker());
+                    g2.setStroke(new BasicStroke(1.2f));
+                    g2.drawRoundRect(0, 0, getWidth()-1, getHeight()-1, 14, 14);
+                    g2.dispose();
+                }
+            };
+            btn.setFont(new Font("SansSerif", Font.BOLD, 12));
+            btn.setForeground(textColor);
+            btn.setContentAreaFilled(false);
+            btn.setFocusPainted(false);
+            btn.setBorderPainted(false);
+            btn.setOpaque(false);
+            btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            btn.setBorder(new EmptyBorder(7, 16, 7, 16));
+            btn.addMouseListener(new MouseAdapter() {
+                public void mouseEntered(MouseEvent e) { btn.repaint(); }
+                public void mouseExited(MouseEvent e) { btn.repaint(); }
+            });
+            return btn;
+        }
+
+        /** Creates a styled card-style panel */
+        private JPanel cardPanel(JComponent content) {
+            JPanel card = new JPanel(new BorderLayout());
+            card.setBackground(new Color(255, 255, 255));
+            card.setBorder(new CompoundBorder(
+                new LineBorder(new Color(200, 215, 235), 1, true),
+                new EmptyBorder(10, 10, 10, 10)
+            ));
+            card.add(content, BorderLayout.CENTER);
+            return card;
+        }
+
+        /** Creates a section title label */
+        private JLabel sectionLabel(String text) {
+            JLabel lbl = new JLabel(text);
+            lbl.setFont(new Font("SansSerif", Font.BOLD, 13));
+            lbl.setForeground(new Color(200, 220, 255));
+            lbl.setBorder(new EmptyBorder(0, 0, 6, 0));
+            return lbl;
+        }
+
+        /** Wraps scroll pane in a card */
+        private JScrollPane styledScroll(JComponent comp) {
+            JScrollPane sp = new JScrollPane(comp);
+            sp.setBorder(BorderFactory.createLineBorder(new Color(190, 210, 235), 1));
+            sp.getViewport().setBackground(Color.WHITE);
+            return sp;
         }
 
         private JPanel inventoryPanel() {
             JPanel panel = new JPanel(new BorderLayout(8, 8));
-            JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT));
-            JButton add = new JButton("Add New Medicine");
-            JButton refill = new JButton("Refill / Update Stock");
-            JButton refresh = new JButton("Refresh");
+            panel.setOpaque(false);
+
+            // Section header + action buttons
+            JPanel topBar = new JPanel(new BorderLayout(0, 4));
+            topBar.setOpaque(false);
+            topBar.add(sectionLabel("📦  Medicine Inventory"), BorderLayout.NORTH);
+
+            JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+            buttons.setOpaque(false);
+            JButton add     = styledButton("+ Add Medicine",    new Color(25, 118, 210), Color.WHITE);
+            JButton refill  = styledButton("↑ Refill Stock",   new Color(46, 125, 50),  Color.WHITE);
+            JButton refresh = styledButton("↻ Refresh",        new Color(55, 71, 79),   Color.WHITE);
             add.addActionListener(e -> medicineDialog());
             refill.addActionListener(e -> stockRefillDialog());
             refresh.addActionListener(e -> refreshAll());
             buttons.add(add);
             buttons.add(refill);
             buttons.add(refresh);
-            panel.add(buttons, BorderLayout.NORTH);
+            topBar.add(buttons, BorderLayout.CENTER);
+
+            panel.add(topBar, BorderLayout.NORTH);
             stockTable.setAutoCreateRowSorter(true);
-            panel.add(new JScrollPane(stockTable), BorderLayout.CENTER);
+            panel.add(styledScroll(stockTable), BorderLayout.CENTER);
             return panel;
         }
 
         private JPanel alertsPanel() {
             JPanel panel = new JPanel(new BorderLayout(8, 8));
-            JButton refresh = new JButton("Refresh Alerts");
+            panel.setOpaque(false);
+
+            JPanel topBar = new JPanel(new BorderLayout(0, 4));
+            topBar.setOpaque(false);
+            topBar.add(sectionLabel("⚠  Inventory Alerts"), BorderLayout.NORTH);
+
+            JPanel btnRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+            btnRow.setOpaque(false);
+            JButton refresh = styledButton("↻ Refresh Alerts", new Color(180, 50, 20), Color.WHITE);
             refresh.addActionListener(e -> refreshAlerts());
-            panel.add(refresh, BorderLayout.NORTH);
+            btnRow.add(refresh);
+            topBar.add(btnRow, BorderLayout.CENTER);
+            panel.add(topBar, BorderLayout.NORTH);
+
             alertsArea.setEditable(false);
             alertsArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 13));
-            panel.add(new JScrollPane(alertsArea), BorderLayout.CENTER);
+            alertsArea.setBackground(new Color(24, 38, 68));
+            alertsArea.setForeground(new Color(200, 230, 255));
+            alertsArea.setCaretColor(new Color(0, 200, 220));
+            alertsArea.setBorder(new EmptyBorder(10, 14, 10, 14));
+            panel.add(styledScroll(alertsArea), BorderLayout.CENTER);
             return panel;
         }
 
         private JPanel billingPanel() {
             JPanel panel = new JPanel(new BorderLayout(8, 8));
-            JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
-            JTextField customer = new JTextField(18);
+            panel.setOpaque(false);
+
+            // Custom Renderer for medicine dropdown with Red/Green dot indicators
+            medicineCombo.setRenderer(new DefaultListCellRenderer() {
+                @Override
+                public Component getListCellRendererComponent(JList<?> list, Object value, int index,
+                        boolean isSelected, boolean cellHasFocus) {
+                    JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                    if (value instanceof MedicineComboItem) {
+                        MedicineComboItem item = (MedicineComboItem) value;
+                        if (item.expired) {
+                            label.setText("<html><font color='#d91e18' size='4'>&#9679;</font> "
+                                    + "<font color='#c0392b'><b>[EXPIRED]</b> "
+                                    + item.batch.getId() + " - " + item.batch.getName()
+                                    + " (Exp: " + item.batch.getExpiryDate() + ")</font></html>");
+                            if (!isSelected) {
+                                label.setBackground(new Color(255, 238, 238));
+                            }
+                        } else {
+                            label.setText("<html><font color='#27ae60' size='4'>&#9679;</font> "
+                                    + item.batch.getId() + " - " + item.batch.getName()
+                                    + " <font color='#555555'>[Stock: " + item.batch.getQuantity()
+                                    + " | \u20B9" + String.format("%.2f", item.batch.getUnitPrice()) + "]</font></html>");
+                            if (!isSelected) {
+                                label.setBackground(Color.WHITE);
+                            }
+                        }
+                    }
+                    return label;
+                }
+            });
+
+            medicineCombo.addActionListener(e -> updateExpiryBadge());
+
+            // Real-time Type-Searching listener
+            searchMedicineField.getDocument().addDocumentListener(new DocumentListener() {
+                public void insertUpdate(DocumentEvent e) { filter(); }
+                public void removeUpdate(DocumentEvent e) { filter(); }
+                public void changedUpdate(DocumentEvent e) { filter(); }
+                private void filter() {
+                    filterBillingMedicines(searchMedicineField.getText().trim());
+                }
+            });
+
+            // ---- Section Header ----
+            JPanel header = new JPanel(new BorderLayout());
+            header.setOpaque(false);
+            header.add(sectionLabel("\uD83D\uDCC3  Billing & Checkout"), BorderLayout.WEST);
+            panel.add(header, BorderLayout.NORTH);
+
+            // ---- Top Controls (2 rows) ----
+            JPanel top = new JPanel(new GridLayout(2, 1, 4, 6));
+            top.setOpaque(false);
+            top.setBorder(new EmptyBorder(6, 0, 6, 0));
+
+            // Row 1: Customer Name + Search Field
+            JPanel row1 = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 2));
+            row1.setOpaque(false);
+            JTextField customer = new JTextField(16);
+            customer.setFont(new Font("SansSerif", Font.PLAIN, 12));
+            JButton clearSearch = styledButton("\u2715 Clear", new Color(90, 90, 90), Color.WHITE);
+            clearSearch.addActionListener(e -> {
+                searchMedicineField.setText("");
+                filterBillingMedicines("");
+                searchMedicineField.requestFocus();
+            });
+
+            JLabel custLbl = new JLabel("Customer:");
+            custLbl.setForeground(new Color(200, 220, 255));
+            custLbl.setFont(new Font("SansSerif", Font.BOLD, 12));
+            JLabel srchLbl = new JLabel("     \uD83D\uDD0D Search Medicine:");
+            srchLbl.setForeground(new Color(200, 220, 255));
+            srchLbl.setFont(new Font("SansSerif", Font.BOLD, 12));
+            searchMedicineField.setToolTipText("Type medicine name or ID to filter list instantly");
+            searchMedicineField.setFont(new Font("SansSerif", Font.PLAIN, 12));
+            row1.add(custLbl);
+            row1.add(customer);
+            row1.add(srchLbl);
+            row1.add(searchMedicineField);
+            row1.add(clearSearch);
+
+            // Row 2: Medicine Combo + Expiry Badge + Qty Spinner + Add button
+            JPanel row2 = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 2));
+            row2.setOpaque(false);
             JSpinner quantity = new JSpinner(new SpinnerNumberModel(1, 1, 100000, 1));
-            JButton add = new JButton("Add to Bill");
-            JButton remove = new JButton("Remove Selected");
-            JButton checkoutButton = new JButton("Checkout");
-            top.add(new JLabel("Customer:"));
-            top.add(customer);
-            top.add(new JLabel("Medicine:"));
-            top.add(medicineCombo);
-            top.add(new JLabel("Quantity:"));
-            top.add(quantity);
-            top.add(add);
-            panel.add(top, BorderLayout.NORTH);
-            panel.add(new JScrollPane(cartTable), BorderLayout.CENTER);
-            JPanel bottom = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-            JLabel total = new JLabel("Total: ₹0.00");
+            JButton add = styledButton("+ Add to Bill",    new Color(46, 125, 50),  Color.WHITE);
+            JButton remove = styledButton("\u2715 Remove",       new Color(183, 28, 28), Color.WHITE);
+            JButton checkoutButton = styledButton("\uD83E\uDDFE Checkout", new Color(25, 118, 210), Color.WHITE);
+
+            medicineCombo.setPreferredSize(new Dimension(380, 28));
+            medicineCombo.setFont(new Font("SansSerif", Font.PLAIN, 12));
+            JLabel selLbl = new JLabel("Select Medicine:");
+            selLbl.setForeground(new Color(200, 220, 255));
+            selLbl.setFont(new Font("SansSerif", Font.BOLD, 12));
+            JLabel qtyLbl = new JLabel("Quantity:");
+            qtyLbl.setForeground(new Color(200, 220, 255));
+            qtyLbl.setFont(new Font("SansSerif", Font.BOLD, 12));
+            row2.add(selLbl);
+            row2.add(medicineCombo);
+            row2.add(expiryBadge);
+            row2.add(qtyLbl);
+            row2.add(quantity);
+            row2.add(add);
+
+            top.add(row1);
+            top.add(row2);
+
+            // Wrap controls in a dark card
+            JPanel topCard = new JPanel(new BorderLayout());
+            topCard.setBackground(new Color(20, 33, 60));
+            topCard.setBorder(new CompoundBorder(
+                new LineBorder(new Color(0, 100, 160), 1, true),
+                new EmptyBorder(8, 10, 8, 10)
+            ));
+            topCard.add(top, BorderLayout.CENTER);
+            panel.add(topCard, BorderLayout.NORTH);
+
+            // ---- Cart Table (center) ----
+            panel.add(styledScroll(cartTable), BorderLayout.CENTER);
+
+            // ---- Bottom: Remove + Total + Checkout ----
+            JPanel bottom = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 8));
+            bottom.setOpaque(false);
+            JLabel total = new JLabel("Total: \u20B90.00");
+            total.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 15));
+            total.setForeground(new Color(0, 200, 180));
             bottom.add(remove);
             bottom.add(total);
             bottom.add(checkoutButton);
             panel.add(bottom, BorderLayout.SOUTH);
 
+            // ---- Action Listeners ----
             add.addActionListener(e -> {
-                if (medicineCombo.getSelectedItem() == null)
+                Object sel = medicineCombo.getSelectedItem();
+                if (sel == null) {
+                    error("Please select a medicine first.");
                     return;
-                String id = medicineCombo.getSelectedItem().toString().split(" - ", 2)[0];
-                MedicineBatch b = inventory.get(id);
+                }
+                MedicineBatch b = ((MedicineComboItem) sel).batch;
                 int qty = (Integer) quantity.getValue();
                 if (b.getExpiryDate().isBefore(LocalDate.now())) {
-                    error("This medicine batch has expired.");
+                    error("Cannot add to bill: '" + b.getName() + "' (Batch " + b.getBatchNumber()
+                            + ") EXPIRED on " + b.getExpiryDate() + "!\nExpired medicines cannot be sold.");
                     return;
                 }
                 int already = 0;
@@ -876,17 +1263,20 @@ class PharmacyManagementSystem {
                 pendingCustomerName = customer.getText().trim();
                 if (pendingCustomerName.isEmpty()) {
                     error("Enter the customer name first.");
+                    customer.requestFocus();
                     return;
                 }
                 pendingBillItems.add(new SaleItem(b, qty));
                 refreshCart(total);
             });
+
             remove.addActionListener(e -> {
                 int row = cartTable.getSelectedRow();
                 if (row >= 0)
                     pendingBillItems.remove(row);
                 refreshCart(total);
             });
+
             checkoutButton.addActionListener(e -> {
                 if (pendingBillItems.isEmpty()) {
                     error("The bill is empty.");
@@ -901,21 +1291,29 @@ class PharmacyManagementSystem {
                 JOptionPane.showMessageDialog(this, new JScrollPane(view), "Invoice", JOptionPane.INFORMATION_MESSAGE);
                 customer.setText("");
             });
+
             return panel;
         }
 
         private JPanel historyPanel() {
             JPanel panel = new JPanel(new BorderLayout(8, 8));
+            panel.setOpaque(false);
 
             // --- Top bar ---
-            JPanel topBar = new JPanel(new BorderLayout());
+            JPanel topBar = new JPanel(new BorderLayout(0, 4));
+            topBar.setOpaque(false);
+            topBar.add(sectionLabel("\uD83D\uDCCA  Transaction History"), BorderLayout.NORTH);
+
+            JPanel btnRow = new JPanel(new BorderLayout());
+            btnRow.setOpaque(false);
             JLabel hint = new JLabel("  Click a transaction to view its invoice ");
             hint.setFont(new Font(Font.SANS_SERIF, Font.ITALIC, 12));
-            hint.setForeground(new java.awt.Color(80, 80, 180));
-            JButton refresh = new JButton("Refresh History");
+            hint.setForeground(new Color(140, 200, 255));
+            JButton refresh = styledButton("↻ Refresh History", new Color(106, 27, 154), Color.WHITE);
             refresh.addActionListener(e -> refreshHistory());
-            topBar.add(hint, BorderLayout.WEST);
-            topBar.add(refresh, BorderLayout.EAST);
+            btnRow.add(hint, BorderLayout.WEST);
+            btnRow.add(refresh, BorderLayout.EAST);
+            topBar.add(btnRow, BorderLayout.CENTER);
             panel.add(topBar, BorderLayout.NORTH);
 
             // --- Custom cell renderer: each transaction row + separator ---
@@ -936,11 +1334,11 @@ class PharmacyManagementSystem {
                     header.setFont(new Font(Font.MONOSPACED, Font.BOLD, 13));
                     header.setForeground(isSelected
                         ? java.awt.Color.WHITE
-                        : new java.awt.Color(30, 80, 160));
+                        : new java.awt.Color(0, 188, 212));
 
                     // Item lines below the header
                     StringBuilder itemLines = new StringBuilder("<html><font face='Monospaced' size='3' color='"
-                        + (isSelected ? "#ddddff" : "#444444") + "'>");
+                        + (isSelected ? "#ddddff" : "#9ec5e8") + "'>");
                     for (SaleItem si : t.items)
                         itemLines.append("&nbsp;&nbsp;&nbsp;&#8250; ")
                             .append(si.batch.getName())
@@ -954,18 +1352,18 @@ class PharmacyManagementSystem {
                     // Separator line at bottom
                     JPanel sep = new JPanel();
                     sep.setPreferredSize(new java.awt.Dimension(0, 1));
-                    sep.setBackground(new java.awt.Color(180, 200, 230));
+                    sep.setBackground(new java.awt.Color(0, 80, 120));
 
                     cell.add(header, BorderLayout.NORTH);
                     cell.add(items, BorderLayout.CENTER);
                     cell.add(sep, BorderLayout.SOUTH);
 
                     if (isSelected) {
-                        cell.setBackground(new java.awt.Color(70, 130, 220));
+                        cell.setBackground(new java.awt.Color(0, 110, 160));
                     } else {
                         cell.setBackground(index % 2 == 0
-                            ? java.awt.Color.WHITE
-                            : new java.awt.Color(245, 248, 255));
+                            ? new java.awt.Color(24, 38, 68)
+                            : new java.awt.Color(20, 30, 56));
                     }
                     return cell;
                 }
@@ -986,7 +1384,7 @@ class PharmacyManagementSystem {
                 }
             });
 
-            panel.add(new JScrollPane(historyList), BorderLayout.CENTER);
+            panel.add(styledScroll(historyList), BorderLayout.CENTER);
             return panel;
         }
 
@@ -1044,12 +1442,41 @@ class PharmacyManagementSystem {
 
         private void refreshStock() {
             stockModel.setRowCount(0);
-            medicineCombo.removeAllItems();
             for (MedicineBatch b : orderedStock()) {
                 stockModel.addRow(new Object[] { b.getId(), b.getName(), b.getBatchNumber(),
                         b.getQuantity(), b.getManufacturingDate(), b.getExpiryDate(), b.getSupplier(),
-                        String.format("₹%.2f", b.getUnitPrice()) });
-                medicineCombo.addItem(b.getId() + " - " + b.getName());
+                        String.format("\u20B9%.2f", b.getUnitPrice()) });
+            }
+            filterBillingMedicines(searchMedicineField.getText().trim());
+        }
+
+        private void filterBillingMedicines(String query) {
+            medicineCombo.removeAllItems();
+            String q = query.toLowerCase();
+            for (MedicineBatch b : orderedStock()) {
+                if (q.isEmpty() || b.getName().toLowerCase().contains(q) || b.getId().toLowerCase().contains(q)) {
+                    medicineCombo.addItem(new MedicineComboItem(b));
+                }
+            }
+            if (medicineCombo.getItemCount() > 0) {
+                medicineCombo.setSelectedIndex(0);
+            }
+            updateExpiryBadge();
+        }
+
+        private void updateExpiryBadge() {
+            Object sel = medicineCombo.getSelectedItem();
+            if (sel instanceof MedicineComboItem) {
+                MedicineComboItem item = (MedicineComboItem) sel;
+                if (item.expired) {
+                    expiryBadge.setText("<html><font color='#d91e18'><b>&#9679; EXPIRED (" + item.batch.getExpiryDate() + ")</b></font></html>");
+                    expiryBadge.setToolTipText("Warning: Expired batch cannot be billed!");
+                } else {
+                    expiryBadge.setText("<html><font color='#27ae60'><b>&#9679; Active</b></font> <font color='#555555'>(" + item.batch.getQuantity() + " in stock)</font></html>");
+                    expiryBadge.setToolTipText("Active batch ready for dispensing.");
+                }
+            } else {
+                expiryBadge.setText("");
             }
         }
 
